@@ -1,0 +1,9 @@
+node_modules/
+dist/
+lib/
+.next/
+.env
+scan-output.json
+*.log
+.turbo/
+*.tsbuildinfo

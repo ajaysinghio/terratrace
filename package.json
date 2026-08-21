@@ -1,0 +1,21 @@
+{
+  "name": "terratrace",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Code-level carbon and cost attribution — traces cloud carbon/cost impact back to specific functions and lines, correlates with real AWS billing data, and uses an LLM to explain and fix it.",
+  "scripts": {
+    "build": "pnpm -r build",
+    "dev:dashboard": "pnpm --filter @terratrace/dashboard dev",
+    "scan": "pnpm --filter @terratrace/cli start",
+    "lint": "pnpm -r lint",
+    "typecheck": "pnpm -r typecheck"
+  },
+  "devDependencies": {
+    "typescript": "^7.0.2",
+    "@types/node": "^26.2.0"
+  },
+  "packageManager": "pnpm@11.22.0",
+  "engines": {
+    "node": ">=20"
+  }
+}

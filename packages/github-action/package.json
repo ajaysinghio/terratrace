@@ -1,0 +1,22 @@
+{
+  "name": "@terratrace/github-action",
+  "version": "0.1.0",
+  "description": "PR bot: scans changed Python files for carbon/cost-impacting patterns and comments an explanation on the PR.",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "build": "tsc -b && ncc build lib/index.js -o dist --minify",
+    "typecheck": "tsc -b",
+    "lint": "echo \"(no linter configured for @terratrace/github-action)\""
+  },
+  "dependencies": {
+    "@actions/core": "^3.0.1",
+    "@actions/github": "^9.1.1",
+    "@terratrace/core": "workspace:*"
+  },
+  "devDependencies": {
+    "@vercel/ncc": "^0.45.0",
+    "typescript": "^7.0.2",
+    "@types/node": "^26.2.0"
+  }
+}

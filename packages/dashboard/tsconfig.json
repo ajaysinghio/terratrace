@@ -1,0 +1,19 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "rootDir": ".",
+    "outDir": "dist",
+    "composite": false,
+    "declaration": false,
+    "declarationMap": false,
+    "jsx": "preserve",
+    "noEmit": true,
+    "allowJs": true,
+    "plugins": [{ "name": "next" }]
+  },
+  "include": ["src", "next-env.d.ts"],
+  "exclude": ["node_modules", ".next", "dist"],
+  "references": [{ "path": "../core" }]
+}

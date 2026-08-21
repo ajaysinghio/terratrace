@@ -1,0 +1,12 @@
+name: "TerraTrace"
+description: "Scans changed Python files for carbon/cost-impacting code patterns and explains them on the PR."
+inputs:
+  github-token:
+    description: "Token used to read PR files and post comments (usually secrets.GITHUB_TOKEN)."
+    required: true
+  anthropic-api-key:
+    description: "Anthropic API key used to generate explanations."
+    required: true
+runs:
+  using: "node20"
+  main: "dist/index.js"

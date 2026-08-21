@@ -1,0 +1,30 @@
+{
+  "name": "@terratrace/core",
+  "version": "0.1.0",
+  "description": "Shared domain types and pluggable interfaces for billing, code analysis, LLM reasoning, and carbon math.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b --noEmit",
+    "lint": "echo \"(no linter configured for @terratrace/core)\""
+  },
+  "dependencies": {
+    "@ai-sdk/anthropic": "^4.0.40",
+    "@aws-sdk/client-cost-explorer": "^3.1115.0",
+    "ai": "^7.0.73",
+    "tree-sitter": "^0.25.1",
+    "tree-sitter-python": "^0.25.0"
+  },
+  "devDependencies": {
+    "typescript": "^7.0.2",
+    "@types/node": "^26.2.0"
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "name": "@terratrace/cli",
+  "version": "0.1.0",
+  "description": "Runnable end-to-end pipeline: scan Python files for carbon/cost-impacting patterns and explain them with Claude.",
+  "type": "module",
+  "bin": {
+    "terratrace": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "start": "tsc -b && node dist/index.js",
+    "typecheck": "tsc -b",
+    "lint": "echo \"(no linter configured for @terratrace/cli)\""
+  },
+  "dependencies": {
+    "@terratrace/core": "workspace:*",
+    "fast-glob": "^3.3.3"
+  },
+  "devDependencies": {
+    "typescript": "^7.0.2",
+    "@types/node": "^26.2.0"
+  }
+}
