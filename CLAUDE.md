@@ -73,6 +73,51 @@ type-check failure (or success) in a downstream package.
   findings store — see the README's remote-deploy notes before assuming it
   should stay a local file read in any hosted context.
 
+## Multi-project model
+
+The dashboard is org-scale, not single-repo: the CLI writes one file per
+scanned repo to `scan-output/<project-id>.json` (`{ project, findings }`,
+see `packages/cli/src/index.ts`), and the dashboard's home page
+(`packages/dashboard/src/app/page.tsx`) lists every project found under
+`scan-output/`, linking to a drill-down page
+(`packages/dashboard/src/app/projects/[projectId]/page.tsx`) that renders the
+full `<Dashboard>` (charts, heatmap, carbon breakdown) for just that repo.
+`packages/dashboard/src/lib/projects.ts` is the only place that knows
+`scan-output/` is a directory of JSON files — when this becomes a real
+findings store (S3, a database), that's the file to change; the home page and
+drill-down page should keep consuming `loadProjectSummaries()` /
+`loadProject()` unchanged. Don't reintroduce a single flat
+`scan-output.json` — that was the pre-multi-project shape and no longer
+matches what the dashboard reads.
+
+## Future direction: core as an agent/harness, not just a library
+
+Today `@terratrace/core` is a passive library — `cli`, `github-action`, and
+`dashboard` each wire up `CloudBillingSource` + `CodeAnalyzer` + `LLMProvider`
+themselves and drive the pipeline step by step. The intended evolution is for
+`core` itself to behave like an agent/harness: given a linked source (a repo
+path or URL, plus enough config to resolve its cloud billing account), it
+should autonomously run the full analyze → correlate → estimate → explain →
+recommend loop and hand back a finished set of findings, explanations, fix
+diffs, and prioritized recommendations — without each caller re-orchestrating
+that sequence by hand.
+
+Do not build this now — it's noted here so future work moves toward it
+instead of accidentally away from it. When it is picked up:
+
+- The orchestration entrypoint belongs in `@terratrace/core` (e.g. something
+  like a `TerraTraceAgent`/`runAnalysis` that composes a `CodeAnalyzer`, a
+  `CloudBillingSource`, and an `LLMProvider`), not duplicated per-caller.
+- It should still go through the existing three interfaces — "acting like an
+  agent" means smarter orchestration and sequencing (deciding what to
+  analyze, what billing window to correlate, when to call `generateFix` vs.
+  just `explainFinding`, how to prioritize/rank findings into
+  recommendations), not a bypass of `CloudBillingSource` / `CodeAnalyzer` /
+  `LLMProvider`.
+- `cli`, `github-action`, and `dashboard` should become thin callers of that
+  orchestration entrypoint rather than each re-implementing the
+  scan-then-explain loop.
+
 ## Verifying changes
 
 - `pnpm build` (root) — builds every package, core first.

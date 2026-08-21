@@ -27,7 +27,7 @@ terratrace/
     ├── core/          — shared types + CloudBillingSource / CodeAnalyzer / LLMProvider interfaces
     ├── cli/            — end-to-end scan pipeline (packages/cli/src/index.ts)
     ├── github-action/  — PR bot, bundled with ncc (packages/github-action/src/index.ts)
-    └── dashboard/      — Next.js app that reads scan-output.json (packages/dashboard/src/app/page.tsx)
+    └── dashboard/      — Next.js app: project list (home) → per-project drill-down with charts/heatmap/carbon (packages/dashboard/src/app/)
 ```
 
 See [CONTRIBUTING.md](./CONTRIBUTING.md) for the full source tree, the
@@ -59,30 +59,36 @@ pnpm build                       # builds every package, core first
 `dashboard` will type-check or run — they all depend on its compiled
 declarations via `workspace:*`. `pnpm build` handles ordering automatically.
 
-**CLI** — scan the planted sample repo and print enriched findings as JSON:
+**CLI** — scan a repo and write one project file to `scan-output/<project-id>.json`
+(also printed to stdout). Run it once per repo, giving each a distinct project id:
 
 ```bash
-pnpm scan
-# or a specific glob:
-pnpm --filter @terratrace/cli start "./sample-repo/**/*.py"
+pnpm scan                        # scans ./sample-repo, project id "sample-repo"
+# or explicitly, one invocation per repo:
+pnpm --filter @terratrace/cli start "./sample-repo/**/*.py" orders-service "Orders Service"
+pnpm --filter @terratrace/cli start "../payments-repo/**/*.py" payments-service "Payments Service"
 ```
 
-**Dashboard (dev mode)** — write scan results for the dashboard to read, then start it:
+**Dashboard (dev mode)** — the home page lists every project under
+`scan-output/`, each linking to its own drill-down page with the full charts,
+heatmap, and carbon/environmental-impact breakdown:
 
 ```bash
-pnpm scan > scan-output.json
 pnpm dev:dashboard               # http://localhost:3000
 ```
 
-If `scan-output.json` doesn't exist yet, the dashboard renders a
-"run the CLI first" message instead of erroring.
+If `scan-output/` is empty, the home page shows a "run the CLI first" message
+instead of erroring. A company scanning 100s of repos would run the CLI (or
+the GitHub Action) once per repo in CI and sync each repo's
+`scan-output/<project-id>.json` into wherever the dashboard reads from — see
+the remote-deploy note below.
 
 ## Deploy
 
 ### Dashboard — local production build
 
 ```bash
-pnpm scan > scan-output.json
+pnpm scan   # or one `pnpm --filter @terratrace/cli start ...` per repo
 pnpm --filter @terratrace/dashboard build
 pnpm --filter @terratrace/dashboard start   # http://localhost:3000
 ```
@@ -102,13 +108,14 @@ Notes:
   root directory" (or deploy from the repo root with a Vercel `installCommand`
   of `pnpm install` and `buildCommand` of `pnpm --filter @terratrace/dashboard build`),
   so `@terratrace/core` resolves via the workspace.
-- The dashboard currently reads `scan-output.json` from disk at request time
-  (`packages/dashboard/src/app/page.tsx`). For a remote deploy, either commit
-  a generated `scan-output.json` as part of your build step, or wire the page
-  up to fetch findings from wherever your CI publishes them — the file-read
-  is a placeholder for a real findings store.
+- The dashboard currently reads every `scan-output/<project-id>.json` file
+  from disk at request time (`packages/dashboard/src/lib/projects.ts`). For a
+  remote deploy with 100s of repos, either sync each repo's scan output into
+  `scan-output/` as part of your build/deploy step, or swap `projects.ts` for
+  a real findings store (S3, a database, etc.) that CI writes to and the
+  dashboard reads from — the directory-of-JSON-files read is a placeholder.
 - No environment variables are required by the dashboard itself today, since
-  it only reads a local JSON file.
+  it only reads local JSON files.
 
 ### GitHub Action — build and publish
 
@@ -154,7 +161,7 @@ Run the same scan in any CI pipeline (no deploy needed, just Node + pnpm):
 pnpm install --frozen-lockfile
 pnpm --filter @terratrace/core build
 pnpm --filter @terratrace/cli build
-ANTHROPIC_API_KEY=*** pnpm scan > scan-output.json
+ANTHROPIC_API_KEY=*** pnpm --filter @terratrace/cli start "./src/**/*.py" my-repo-id "My Repo"
 ```
 
 ## Contributing

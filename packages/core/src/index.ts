@@ -11,3 +11,4 @@ export * from "./llm/LLMProvider.js";
 export * from "./llm/AnthropicProvider.js";
 
 export * from "./carbon/carbonMath.js";
+export * from "./carbon/correlate.js";

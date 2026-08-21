@@ -57,7 +57,15 @@ terratrace/
     │   ├── action.yml             (node20 runtime)
     │   └── src/index.ts           (PR bot)
     └── dashboard/
-        └── src/app/page.tsx       (reads scan-output.json, lists findings)
+        └── src/
+            ├── app/
+            │   ├── page.tsx                       (home: lists all scanned projects)
+            │   └── projects/[projectId]/page.tsx   (drill-down: charts, heatmap, carbon)
+            ├── components/Dashboard.tsx            (charts/heatmap/carbon, shared by drill-down)
+            └── lib/
+                ├── projects.ts    (reads scan-output/<project-id>.json files)
+                ├── stats.ts       (severity/file/carbon aggregation, pure functions)
+                └── equivalents.ts (illustrative environmental-impact equivalents)
 ```
 
 This is a pnpm workspace with one shared package (`core`) and three
@@ -131,6 +139,12 @@ add it to that language's registry array (e.g. `pythonRules`). Keep rule
 heuristics honest in their own comments about false-positive/negative risk —
 see the note at the top of `nPlusOneQuery.ts`.
 
+If the new rule should get a carbon estimate, add its `id` to
+`RULE_SERVICE_MAP` in `packages/core/src/carbon/correlate.ts`, mapping it to
+the AWS service it most directly amplifies (e.g. a "chatty S3 list" rule
+would map to `AmazonS3`). Without an entry there, `correlateFindingsWithUsage`
+silently skips that rule's findings — they just won't carry an `estimate`.
+
 ## Adding or swapping an LLM provider
 
 - **Swapping models within Anthropic**: change the `modelId` passed into
@@ -157,6 +171,11 @@ see the note at the top of `nPlusOneQuery.ts`.
   `nPlusOneQuery.ts` for the tone to match.
 - Don't hardcode a specific cloud, language, or model outside of that
   concern's own implementation file.
+- The dashboard's charts (`packages/dashboard/src/components/Dashboard.tsx`)
+  use `recharts`. Derived stats (severity counts, per-file impact scores) live
+  in `packages/dashboard/src/lib/stats.ts` as pure functions — keep new chart
+  data prep there rather than inline in the component, so it stays testable
+  independent of React.
 
 ## Reporting issues
 

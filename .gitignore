@@ -1,9 +1,10 @@
 node_modules/
 dist/
-lib/
+packages/github-action/lib/
 .next/
 .env
 scan-output.json
+scan-output/
 *.log
 .turbo/
 *.tsbuildinfo

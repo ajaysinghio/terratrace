@@ -1,64 +1,73 @@
-import { readFile } from "node:fs/promises";
-import path from "node:path";
-import type { EnrichedFinding } from "@terratrace/core";
+import Link from "next/link";
+import { loadProjectSummaries } from "../lib/projects";
+import { SEVERITY_COLOR } from "../lib/stats";
 
-const SCAN_OUTPUT_PATH = path.join(process.cwd(), "..", "..", "scan-output.json");
+export default async function HomePage() {
+  const summaries = await loadProjectSummaries();
 
-async function loadFindings(): Promise<EnrichedFinding[] | null> {
-  try {
-    const raw = await readFile(SCAN_OUTPUT_PATH, "utf-8");
-    return JSON.parse(raw) as EnrichedFinding[];
-  } catch {
-    return null;
-  }
-}
-
-export default async function Page() {
-  const findings = await loadFindings();
-
-  if (findings === null) {
+  if (summaries.length === 0) {
     return (
-      <main style={{ fontFamily: "sans-serif", padding: "2rem" }}>
-        <h1>TerraTrace</h1>
+      <main className="empty-state">
+        <h1>🌱 TerraTrace</h1>
         <p>
-          No scan results found. Run the CLI first: <code>pnpm scan &gt; scan-output.json</code>
+          No scanned projects found yet. Run the CLI against a repo first:{" "}
+          <code>pnpm --filter @terratrace/cli start &quot;./sample-repo/**/*.py&quot; sample-repo</code>
         </p>
+        <p>Each run writes one file to <code>scan-output/&lt;project-id&gt;.json</code>.</p>
       </main>
     );
   }
 
+  const orgTotals = summaries.reduce(
+    (acc, s) => {
+      acc.findings += s.stats.total;
+      acc.high += s.stats.severityCounts.find((sc) => sc.severity === "high")?.count ?? 0;
+      acc.kgCO2e += s.stats.totalKgCO2e ?? 0;
+      return acc;
+    },
+    { findings: 0, high: 0, kgCO2e: 0 },
+  );
+
   return (
-    <main style={{ fontFamily: "sans-serif", padding: "2rem", maxWidth: 900, margin: "0 auto" }}>
-      <h1>TerraTrace findings</h1>
-      <p>{findings.length} finding(s)</p>
-      <ul style={{ listStyle: "none", padding: 0 }}>
-        {findings.map((finding) => (
-          <li
-            key={finding.id}
-            style={{ border: "1px solid #ddd", borderRadius: 8, padding: "1rem", marginBottom: "1rem" }}
-          >
-            <div style={{ fontWeight: 600 }}>
-              {finding.filePath}:{finding.startLine}-{finding.endLine} — {finding.ruleId} ({finding.severity})
-            </div>
-            <pre
-              style={{
-                background: "#f6f6f6",
-                padding: "0.75rem",
-                borderRadius: 6,
-                overflowX: "auto",
-                marginTop: "0.5rem",
-              }}
-            >
-              {finding.snippet}
-            </pre>
-            {finding.explanation && (
-              <p style={{ marginTop: "0.5rem" }}>
-                <strong>Explanation:</strong> {finding.explanation}
-              </p>
-            )}
-          </li>
-        ))}
-      </ul>
-    </main>
+    <div className="dashboard">
+      <header className="dashboard__header">
+        <h1>🌱 TerraTrace</h1>
+        <p>
+          {summaries.length} project(s) scanned · {orgTotals.findings} finding(s) total · {orgTotals.high} high
+          severity · {orgTotals.kgCO2e > 0 ? `${orgTotals.kgCO2e.toFixed(2)} kgCO2e estimated` : "no carbon estimate yet"}
+        </p>
+      </header>
+
+      <section className="project-grid">
+        {summaries.map(({ project, stats }) => {
+          const high = stats.severityCounts.find((s) => s.severity === "high")?.count ?? 0;
+          const medium = stats.severityCounts.find((s) => s.severity === "medium")?.count ?? 0;
+          const low = stats.severityCounts.find((s) => s.severity === "low")?.count ?? 0;
+          const total = Math.max(stats.total, 1);
+
+          return (
+            <Link key={project.id} href={`/projects/${project.id}`} className="project-card">
+              <div className="project-card__header">
+                <h2>{project.name}</h2>
+                <span className="project-card__count">{stats.total} finding(s)</span>
+              </div>
+              <div className="project-card__bar">
+                {high > 0 && (
+                  <span style={{ width: `${(high / total) * 100}%`, background: SEVERITY_COLOR.high }} />
+                )}
+                {medium > 0 && (
+                  <span style={{ width: `${(medium / total) * 100}%`, background: SEVERITY_COLOR.medium }} />
+                )}
+                {low > 0 && <span style={{ width: `${(low / total) * 100}%`, background: SEVERITY_COLOR.low }} />}
+              </div>
+              <div className="project-card__stats">
+                <span>{stats.filesAffected} file(s) affected</span>
+                <span>{stats.hasCarbonEstimate ? `${stats.totalKgCO2e!.toFixed(3)} kgCO2e` : "no carbon data"}</span>
+              </div>
+            </Link>
+          );
+        })}
+      </section>
+    </div>
   );
 }
