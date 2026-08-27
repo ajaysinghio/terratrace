@@ -2,6 +2,8 @@ export * from "./types.js";
 
 export * from "./billing/CloudBillingSource.js";
 export * from "./billing/AWSCurSource.js";
+export * from "./billing/CostExplorerCsvSource.js";
+export * from "./billing/CostExplorerJsonSource.js";
 
 export * from "./analyzer/CodeAnalyzer.js";
 export * from "./analyzer/PythonAnalyzer.js";
@@ -12,3 +14,5 @@ export * from "./llm/AnthropicProvider.js";
 
 export * from "./carbon/carbonMath.js";
 export * from "./carbon/correlate.js";
+export * from "./carbon/energyModel.js";
+export * from "./carbon/coefficients/index.js";

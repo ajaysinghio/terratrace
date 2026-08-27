@@ -1,50 +1,46 @@
 import type { CarbonEstimate, UsageRecord } from "../types.js";
-
-/**
- * Grid carbon intensity by AWS region, in kg CO2e per kWh. Seed values are
- * approximate published figures for a handful of regions; anything not
- * listed falls back to DEFAULT_GRID_INTENSITY_KG_PER_KWH.
- */
-export const GRID_INTENSITY_KG_PER_KWH: Record<string, number> = {
-  "us-east-1": 0.379,
-  "us-west-2": 0.136,
-  "eu-west-1": 0.316,
-};
-
-const DEFAULT_GRID_INTENSITY_KG_PER_KWH = 0.4;
-
-// PLACEHOLDER COEFFICIENT: this treats every unit of `usageAmount` (regardless
-// of service or usage unit) as costing a flat 0.01 kWh. That is not a real
-// energy model — before quoting these numbers publicly, replace this with
-// Cloud Carbon Footprint's published per-service, per-instance-type energy
-// coefficients (https://www.cloudcarbonfootprint.org/docs/methodology).
-const PLACEHOLDER_KWH_PER_USAGE_UNIT = 0.01;
+import { energyModelFor } from "./coefficients/index.js";
+import { gridIntensity, DEFAULT_GRID_INTENSITY_KG_PER_KWH } from "./coefficients/grid.js";
 
 /**
  * SCI-style kgCO2e estimate derived from a set of billing usage records.
- * Returns confidence: "low" until PLACEHOLDER_KWH_PER_USAGE_UNIT is replaced
- * with real per-service energy coefficients.
+ * Dispatches per record.provider to the registered EnergyModel, then
+ * multiplies by the region's grid intensity. Confidence is set from the
+ * fraction of records the registered models could actually estimate.
+ *
+ * Adding a new cloud (or on-prem) does not change this function — see
+ * `./coefficients/index.ts` for the extension seam.
  */
 export function estimateCarbon(records: UsageRecord[]): CarbonEstimate {
   let totalKgCO2e = 0;
-  let weightedIntensitySum = 0;
   let totalKwh = 0;
+  let weightedIntensitySum = 0;
+  let coveredCount = 0;
 
   for (const record of records) {
-    const gridIntensity = GRID_INTENSITY_KG_PER_KWH[record.region] ?? DEFAULT_GRID_INTENSITY_KG_PER_KWH;
-    const estimatedKwh = record.usageAmount * PLACEHOLDER_KWH_PER_USAGE_UNIT;
+    const model = energyModelFor(record.provider);
+    if (!model) continue;
 
-    totalKgCO2e += estimatedKwh * gridIntensity;
-    totalKwh += estimatedKwh;
-    weightedIntensitySum += estimatedKwh * gridIntensity;
+    const kwh = model.estimateKwh(record);
+    if (kwh <= 0) continue;
+
+    const intensity = gridIntensity(record.provider, record.region);
+    totalKgCO2e += kwh * intensity;
+    totalKwh += kwh;
+    weightedIntensitySum += kwh * intensity;
+    coveredCount += 1;
   }
 
-  const averageGridIntensityKgPerKwh = totalKwh > 0 ? weightedIntensitySum / totalKwh : DEFAULT_GRID_INTENSITY_KG_PER_KWH;
+  const averageGridIntensityKgPerKwh = totalKwh > 0
+    ? weightedIntensitySum / totalKwh
+    : DEFAULT_GRID_INTENSITY_KG_PER_KWH;
+
+  const coverage = records.length > 0 ? coveredCount / records.length : 0;
 
   return {
     kgCO2e: totalKgCO2e,
     methodology: "ccf-derived",
     gridIntensityGco2PerKwh: averageGridIntensityKgPerKwh * 1000,
-    confidence: "low",
+    confidence: coverage >= 0.8 ? "medium" : "low",
   };
 }
