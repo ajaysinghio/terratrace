@@ -12,6 +12,42 @@ LLM-based reasoning that spans multiple evidence sources at once — that gap is
 what TerraTrace fills. A live grid-carbon-intensity signal (planned) lets it
 also recommend *when* to run batch workloads.
 
+## How this differs from AWS's Customer Carbon Footprint Tool (CCFT)
+
+The most common "why not just use the free thing?" question. CCFT is AWS's
+built-in dashboard that shows a customer's carbon footprint per service /
+region / month. It's the primary comparator TerraTrace has to beat.
+
+| Dimension | AWS CCFT | TerraTrace |
+|---|---|---|
+| **Attribution depth** | Stops at *service × region × month* | Traces down to the *function / line of code* that amplified an RDS or Lambda bill |
+| **Output type** | A number in a dashboard | A number + an LLM-generated **fix diff** a developer can apply |
+| **Scope of estate** | AWS only | Code + on-prem + cloud — covers pre-migration and hybrid clients CCFT literally can't see |
+| **Timeframe** | Retrospective only (3-month lag) | Retrospective *plus* what-if scenarios: "fix this N+1", "shift region", "migrate this workload" |
+| **Methodology** | Proprietary, market-based (includes AWS's PPA/renewables offsets) — usually produces *lower* numbers | Cloud Carbon Footprint's **open, location-based** methodology — defensible in public-sector tenders that want location-based figures |
+| **Pre-cloud clients** | Nothing to show — no AWS spend yet | On-prem mode gives them a pre-migration baseline that becomes the "before" in the migration business case |
+
+**When CCFT is actually the right pick** (be honest about this): a client
+already fully in AWS who just wants a monthly compliance snapshot and doesn't
+care about *what to change* is served fine by CCFT. TerraTrace is overkill
+there — don't pitch against that use case.
+
+**Where TerraTrace wins:**
+
+- Public-sector / EU tenders that score sustainability — they typically want
+  location-based figures, not AWS's market-based number that credits
+  renewables offsets. TerraTrace cites CCF's published methodology openly;
+  CCFT's calc has to be hand-waved.
+- Pre-migration engagements — CCFT gives them zero. On-prem mode gives them a
+  baseline.
+- Modernisation engagements where the value ask is *"what should we change?"*
+  not *"what did we emit?"* — CCFT cannot answer that at all.
+
+One-line positioning: *CCFT tells you what your AWS carbon was last quarter.
+TerraTrace tells you which loop in which service caused it, gives you a fix
+diff, and also works for the on-prem and pre-migration parts of the estate
+that CCFT can't see.*
+
 ## Repo structure
 
 ```
@@ -34,39 +70,63 @@ See [CONTRIBUTING.md](./CONTRIBUTING.md) for the full source tree, the
 architecture behind the three core interfaces, and how to extend each of
 them.
 
+## Prerequisites
+
+- **Node.js ≥ 20.6** (the `--env-file=.env` flag used below needs 20.6+; tested on Node 26). On macOS: `brew install node`.
+- **Corepack** — bootstraps pnpm at the workspace-pinned version. Recent Homebrew node builds no longer bundle it, so install it separately if `corepack` isn't on your PATH after installing node: `brew install corepack`.
+- **pnpm** — activated via `corepack enable pnpm`. The first `pnpm install` will fetch the exact pnpm version pinned in this repo's `package.json`.
+- **A Claude API key** — either an Anthropic key (`sk-ant-…` from [console.anthropic.com/settings/keys](https://console.anthropic.com/settings/keys)) *or* an OpenRouter key (`sk-or-…` from [openrouter.ai/keys](https://openrouter.ai/keys)). Only needed for the `explainFinding` / `generateFix` LLM calls — the deterministic scan itself runs without one.
+
 ## Environment variables
 
 Copy `.env.example` to `.env` and fill in what you need:
 
 | Variable                | Required for                                      |
 |--------------------------|----------------------------------------------------|
-| `ANTHROPIC_API_KEY`      | CLI / GitHub Action (`explainFinding`, `generateFix`) |
+| `ANTHROPIC_API_KEY`      | CLI / GitHub Action (`explainFinding`, `generateFix`) — set this **or** `OPENROUTER_API_KEY` |
+| `OPENROUTER_API_KEY`     | Alternative to `ANTHROPIC_API_KEY` — routes Claude calls through OpenRouter's OpenAI-compatible endpoint (default model `anthropic/claude-sonnet-4.6`) |
 | `AWS_ACCESS_KEY_ID`      | AWS Cost Explorer billing lookups                 |
 | `AWS_SECRET_ACCESS_KEY`  | AWS Cost Explorer billing lookups                 |
 | `AWS_REGION`             | AWS Cost Explorer billing lookups (default `us-east-1`) |
 | `GITHUB_TOKEN`           | GitHub Action (posting PR comments)               |
 
+The CLI does not auto-load `.env` — pass it via Node's built-in flag: `node --env-file=.env packages/cli/dist/index.js …` (shown below). If you'd rather `export` the vars in your shell, that works too.
+
 ## Run locally
 
 ```bash
-corepack enable pnpm             # one-time, if pnpm isn't already available
+# One-time: enable pnpm (if `corepack` is missing, install it separately: brew install corepack)
+corepack enable pnpm
+
 pnpm install
-cp .env.example .env             # fill in ANTHROPIC_API_KEY at minimum
-pnpm build                       # builds every package, core first
+
+# Create your .env, then open it and paste your ANTHROPIC_API_KEY or OPENROUTER_API_KEY
+cp .env.example .env
+open -e .env
+
+# Build every package — core first, ordering is automatic
+pnpm build
 ```
+
+> **Note on comments in commands:** don't paste commands with trailing `# …` comments from a code block into `zsh` — by default zsh treats `#` as a literal argument in interactive mode, which will break commands like `pnpm dev:dashboard # http://localhost:3000`. Either put comments on their own line (as above) or enable `setopt interactive_comments` in your shell.
 
 `@terratrace/core` must be built before `cli`, `github-action`, or
 `dashboard` will type-check or run — they all depend on its compiled
 declarations via `workspace:*`. `pnpm build` handles ordering automatically.
 
 **CLI** — scan a repo and write one project file to `scan-output/<project-id>.json`
-(also printed to stdout). Run it once per repo, giving each a distinct project id:
+(also printed to stdout). Run it once per repo, giving each a distinct project id.
+
+> **Important:** run the CLI from the **workspace root**, not from `packages/cli/`.
+> The dashboard reads `scan-output/` at the repo root; `pnpm --filter @terratrace/cli start …` changes cwd into `packages/cli/`, which both breaks glob patterns like `./sample-repo/**/*.py` and writes findings to the wrong place.
 
 ```bash
-pnpm scan                        # scans ./sample-repo, project id "sample-repo"
-# or explicitly, one invocation per repo:
-pnpm --filter @terratrace/cli start "./sample-repo/**/*.py" orders-service "Orders Service"
-pnpm --filter @terratrace/cli start "../payments-repo/**/*.py" payments-service "Payments Service"
+# Scan one repo — writes ./scan-output/<project-id>.json at the workspace root
+node --env-file=.env packages/cli/dist/index.js "./sample-repo/**/*.py" sample-repo "Sample Repo"
+
+# Same pattern, one invocation per repo:
+node --env-file=.env packages/cli/dist/index.js "./sample-repo/**/*.py" orders-service "Orders Service"
+node --env-file=.env packages/cli/dist/index.js "../payments-repo/**/*.py" payments-service "Payments Service"
 ```
 
 **Dashboard (dev mode)** — the home page lists every project under
@@ -74,8 +134,10 @@ pnpm --filter @terratrace/cli start "../payments-repo/**/*.py" payments-service 
 heatmap, and carbon/environmental-impact breakdown:
 
 ```bash
-pnpm dev:dashboard               # http://localhost:3000
+pnpm dev:dashboard
 ```
+
+Opens at http://localhost:3000. If port 3000 is already in use on your machine, Next.js will automatically fall back to the next available port (usually 3001) — watch the terminal output for the actual URL it prints (`- Local: http://localhost:3001`).
 
 If `scan-output/` is empty, the home page shows a "run the CLI first" message
 instead of erroring. A company scanning 100s of repos would run the CLI (or
@@ -88,10 +150,14 @@ the remote-deploy note below.
 ### Dashboard — local production build
 
 ```bash
-pnpm scan   # or one `pnpm --filter @terratrace/cli start ...` per repo
+# One scan invocation per repo (must run from the workspace root, see CLI note above)
+node --env-file=.env packages/cli/dist/index.js "./sample-repo/**/*.py" sample-repo "Sample Repo"
+
 pnpm --filter @terratrace/dashboard build
-pnpm --filter @terratrace/dashboard start   # http://localhost:3000
+pnpm --filter @terratrace/dashboard start
 ```
+
+Opens at http://localhost:3000 (or the next free port).
 
 ### Dashboard — remote (Vercel)
 

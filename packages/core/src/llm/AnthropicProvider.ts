@@ -1,9 +1,12 @@
-import { generateText } from "ai";
+import { generateText, type LanguageModel } from "ai";
 import { createAnthropic } from "@ai-sdk/anthropic";
+import { createOpenAI } from "@ai-sdk/openai";
 import type { LLMProvider } from "./LLMProvider.js";
 import type { EvidenceBundle } from "../types.js";
 
 const DEFAULT_MODEL_ID = "claude-sonnet-4-6";
+const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
+const OPENROUTER_DEFAULT_MODEL_ID = "anthropic/claude-sonnet-4.6";
 
 const EXPLAIN_SYSTEM_PROMPT = `You are a sustainability and cost engineer. You will be given a JSON evidence
 bundle containing a code finding, related cloud billing usage records, a derived carbon estimate, optional
@@ -31,16 +34,24 @@ the provided evidence, say so explicitly instead of guessing or using outside kn
  */
 export class AnthropicProvider implements LLMProvider {
   readonly modelId: string;
-  private readonly anthropic: ReturnType<typeof createAnthropic>;
+  private readonly model: LanguageModel;
 
-  constructor(modelId: string = DEFAULT_MODEL_ID, apiKey: string | undefined = process.env.ANTHROPIC_API_KEY) {
-    this.modelId = modelId;
-    this.anthropic = createAnthropic({ apiKey });
+  constructor(modelId?: string, apiKey?: string) {
+    const openrouterKey = apiKey ?? process.env.OPENROUTER_API_KEY;
+    if (openrouterKey && !process.env.ANTHROPIC_API_KEY) {
+      this.modelId = modelId ?? OPENROUTER_DEFAULT_MODEL_ID;
+      const openrouter = createOpenAI({ apiKey: openrouterKey, baseURL: OPENROUTER_BASE_URL });
+      this.model = openrouter(this.modelId);
+    } else {
+      this.modelId = modelId ?? DEFAULT_MODEL_ID;
+      const anthropic = createAnthropic({ apiKey: apiKey ?? process.env.ANTHROPIC_API_KEY });
+      this.model = anthropic(this.modelId);
+    }
   }
 
   async explainFinding(evidence: EvidenceBundle): Promise<string> {
     const { text } = await generateText({
-      model: this.anthropic(this.modelId),
+      model: this.model,
       system: EXPLAIN_SYSTEM_PROMPT,
       prompt: JSON.stringify(evidence),
     });
@@ -49,7 +60,7 @@ export class AnthropicProvider implements LLMProvider {
 
   async generateFix(evidence: EvidenceBundle): Promise<string> {
     const { text } = await generateText({
-      model: this.anthropic(this.modelId),
+      model: this.model,
       system: FIX_SYSTEM_PROMPT,
       prompt: JSON.stringify(evidence),
     });
@@ -58,7 +69,7 @@ export class AnthropicProvider implements LLMProvider {
 
   async answerQuery(question: string, grounding: EvidenceBundle[]): Promise<string> {
     const { text } = await generateText({
-      model: this.anthropic(this.modelId),
+      model: this.model,
       system: ANSWER_SYSTEM_PROMPT,
       prompt: JSON.stringify({ question, evidence: grounding }),
     });

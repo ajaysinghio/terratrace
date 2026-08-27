@@ -57,11 +57,19 @@ async function main(): Promise<void> {
       (record) => record.service === RULE_SERVICE_MAP[finding.ruleId],
     );
 
-    const explanation = await llm.explainFinding({
-      codeFinding: finding,
-      carbonEstimate: estimate,
-      relatedUsage,
-    });
+    let explanation: string | undefined;
+    try {
+      explanation = await llm.explainFinding({
+        codeFinding: finding,
+        carbonEstimate: estimate,
+        relatedUsage,
+      });
+    } catch (error) {
+      console.error(
+        `terratrace: explainFinding failed for ${finding.filePath}:${finding.startLine} — leaving explanation empty.`,
+        error instanceof Error ? error.message : error,
+      );
+    }
 
     enrichedFindings.push({ ...finding, estimate, explanation });
   }
