@@ -94,13 +94,10 @@ Positioning is only credible if the code matches the pitch. Three follow-ups the
 - One PR unlocks defensible numbers, plus we get GCP/Azure/Alibaba coefficients for free the moment we add those billing sources.
 - Tradeoff we're accepting: we inherit CCF's 50% CPU utilization assumption and their point-estimate approach. If a client demands market-based reporting, we'll need to plan around it — CCF doesn't ship market-based.
 
-### 5.2 Fix `AWSCurSource` name-vs-implementation mismatch
+### 5.2 `AWSCurSource` now reads a real CUR file — resolved
 
-- `packages/core/src/billing/AWSCurSource.ts` is named after CUR but implemented against Cost Explorer. Currently misleading in both code review and client conversation.
-- Two options:
-  1. Rename to `AWSCostExplorerSource` (honest to current impl) — keep as a lightweight billing source, but be clear this is aggregated and cannot power CCF-grade carbon math.
-  2. Actually implement CUR-via-Athena (or CUR-file-on-S3). This is what the field brief's cloud-mode PoC actually needs — CE granularity is too coarse for CCF's per-instance-type coefficients.
-- Recommendation: do (1) immediately (rename is cheap), plan (2) as the real Days 5–9 work in the 20-hour cloud-mode PoC.
+- Done: `packages/core/src/billing/AWSCurSource.ts` reads a real AWS CUR export file (`lineItem/*`, `product/*`, `pricing/*` columns) instead of calling Cost Explorer. `CostExplorerJsonSource`/`CostExplorerCsvSource` (Cost Explorer-API-shaped) were retired — Cost Explorer isn't CUR and CCF doesn't use it, so TerraTrace standardizes on one form.
+- Still open: this reads a local file only. A live-fetch variant (CUR-via-Athena, or syncing CUR files from S3 directly) is a separate `CloudBillingSource` implementation to add later — see TESTING.md for how to pull a real CUR export in the meantime.
 
 ### 5.3 Use CCF's on-premise package for mode 2
 

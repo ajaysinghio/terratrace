@@ -1,15 +1,13 @@
 # Testing the carbon pipeline locally
 
-Exact commands for smoke-testing the CCF-based carbon math (Option A) against
-sample or real AWS billing data. Sample data plus a runner script ship with
-the repo, so no AWS credentials are needed for the default runs.
+Exact commands for smoke-testing the CCF-based carbon math against a real
+or sample AWS Cost and Usage Report (CUR). A sample CUR file plus a runner
+script ship with the repo, so no AWS access is needed for the default runs.
 
 ## Prerequisites
 
 - pnpm installed
 - Node.js 20+
-- (Optional, only for path 5 below) AWS CLI configured with credentials that
-  have `ce:GetCostAndUsage` permission
 
 ## 1. One-time setup
 
@@ -17,7 +15,7 @@ Run once after cloning, and again any time files under `packages/core/src/`
 change:
 
 ```bash
-cd /Users/priyasrivastava/Downloads/terratrace
+cd terratrace
 pnpm install
 pnpm build
 ```
@@ -26,68 +24,59 @@ pnpm build
 from. If you only edited core, `pnpm --filter @terratrace/core build` is
 enough.
 
-## 2. Run against the CSV sample
+## 2. Run against the sample CUR
 
 ```bash
 node scripts/carbon-smoke.mjs
 ```
 
-Expected: 8 rows in the per-record breakdown, aggregate `kgCO2e: 5.226…`,
-`confidence: "medium"`.
+Expected: 306 rows in the per-record breakdown, aggregate
+`kgCO2e: ~15.64`, `confidence: "low"`. Confidence is `"low"` rather than
+`"medium"` because the sample includes an ALB (load balancer) — the AWS
+energy model doesn't estimate load-balancer wattage, matching CCF's own
+scope (see Troubleshooting below).
 
-## 3. Run against the JSON sample
-
-```bash
-node scripts/carbon-smoke.mjs sample-data/aws-cost-explorer-sample.json
-```
-
-Expected: 7 rows, aggregate `kgCO2e: 5.555…`, `confidence: "medium"`.
-
-The JSON aggregate is ~6% higher than the CSV aggregate because the JSON
-sample matches Cost Explorer's default `SERVICE + REGION` group-by, which
-collapses EC2 records to family-average watts. That gap is the accuracy
-cost of using Cost Explorer JSON instead of CUR.
-
-## 4. Run against your own CSV export
+## 3. Run against your own CUR export
 
 ```bash
-node scripts/carbon-smoke.mjs /absolute/path/to/your-export.csv
+node scripts/carbon-smoke.mjs /absolute/path/to/your-cur-export.csv
 ```
 
-The parser accepts flexible header names — see `COLUMN_ALIASES` in
-`packages/core/src/billing/CostExplorerCsvSource.ts` for what it will match.
-Minimum columns: `service`, `region`, `usageAmount`, `periodStart`. Add an
-`instanceType` column if you want family-level EC2 accuracy.
+The file must be a real AWS CUR export (or something shaped like one) —
+see `AWSCurSource.ts`'s docstring in
+`packages/core/src/billing/AWSCurSource.ts` for the exact `lineItem/*`,
+`product/*`, and `pricing/*` columns it reads. Minimum columns:
+`lineItem/ProductCode`, `product/region`, `lineItem/UsageAmount`,
+`lineItem/UsageStartDate`. Add `product/instanceType` for per-EC2/RDS-family
+accuracy.
 
-If a rename isn't enough, add your header names to the `COLUMN_ALIASES`
-table and re-run `pnpm --filter @terratrace/core build`.
+If your export uses different header names, add them to `COLUMN_ALIASES` in
+`AWSCurSource.ts` and re-run `pnpm --filter @terratrace/core build`.
 
-## 5. Run against your own live AWS account (JSON path)
+### Getting a real CUR export
+
+Pulling your own CUR requires setting one up in your AWS account first
+(Billing and Cost Management → Data Exports → Standard data export, hourly
+granularity, resource IDs enabled), then syncing the delivered files:
 
 ```bash
-aws ce get-cost-and-usage \
-  --time-period Start=2026-07-01,End=2026-08-01 \
-  --granularity DAILY \
-  --metrics UsageQuantity UnblendedCost \
-  --group-by Type=DIMENSION,Key=SERVICE Type=DIMENSION,Key=REGION \
-  --output json > my-costs.json
-
-node scripts/carbon-smoke.mjs my-costs.json
+aws s3 sync s3://your-bucket/your-export-name/ ./my-cur-data/
 ```
 
-Adjust `--time-period` to a month you actually have spend for.
-
-For higher fidelity (per-EC2-family watts), swap `REGION` for
-`INSTANCE_TYPE` in the `--group-by`. You'll then need a custom runner that
-constructs `CostExplorerJsonSource` with
-`{ groupByOrder: ["SERVICE", "INSTANCE_TYPE"], defaultRegion: "us-east-1" }`.
+AWS Cost Explorer's `GetCostAndUsage` API and CloudWatch are **not** CUR —
+they're coarser, separate AWS billing APIs that CCF explicitly doesn't use
+for its carbon math (see `docs/POSITIONING.md`), so TerraTrace doesn't
+ingest them either.
 
 ## What success looks like
 
 - Non-zero `kgCO2e` in the aggregate.
-- `confidence: "medium"` (≥ 80% of records covered by the AWS energy model).
+- `confidence: "medium"` once ≥ 80% of records are covered by the AWS
+  energy model (EC2, RDS, S3, Lambda). Services outside that set (e.g. a
+  load balancer) will always show `0 kWh` and drag confidence down — that's
+  expected, not a bug.
 - Per-record breakdown shows different `kWh` values across regions with
-  different grid intensities.
+  different grid intensities, and across EC2/RDS instance families.
 
 ## Cross-check against reference tools
 
@@ -110,13 +99,13 @@ defensibility:
 - **`Cannot find module '../packages/core/dist/index.js'`** — run
   `pnpm build` from the project root.
 - **`0` records parsed from CSV** — column headers don't match. Compare
-  your headers against `COLUMN_ALIASES` in `CostExplorerCsvSource.ts`.
-- **`confidence: "low"` with real data** — records use service names the
-  AWS model doesn't recognise yet. Currently covered: EC2, S3, Lambda. Add
-  more in the `switch` in `awsEnergyModel.estimateKwh`
-  (`packages/core/src/carbon/coefficients/aws.ts`).
-- **AWS CLI error `AccessDenied`** — the IAM role/user needs
-  `ce:GetCostAndUsage` permission.
+  your headers against `COLUMN_ALIASES` in `AWSCurSource.ts`.
+- **`confidence: "low"` with real data** — records use a service the AWS
+  model doesn't recognise yet. Currently covered: EC2, RDS, S3, Lambda (RDS
+  reuses EC2's per-family wattage table, since it runs on the same
+  underlying instance hardware — see `awsEnergyModel.estimateKwh` in
+  `packages/core/src/carbon/coefficients/aws.ts`). Add more cases there as
+  needed.
 
 ## Files involved
 
@@ -125,8 +114,12 @@ defensibility:
   grid intensity) + provider registry
 - `packages/core/src/carbon/carbonMath.ts` — dispatches through the
   registry
-- `packages/core/src/billing/CostExplorerCsvSource.ts` — offline CSV reader
-- `packages/core/src/billing/CostExplorerJsonSource.ts` — offline JSON
-  reader (matches `aws ce get-cost-and-usage --output json`)
-- `sample-data/aws-cost-explorer-sample.{csv,json}` — sample fixtures
+- `packages/core/src/carbon/correlate.ts` — maps code findings to the AWS
+  service their rule implicates (`RULE_SERVICE_MAP`), then to billing usage
+  for that service
+- `packages/core/src/billing/AWSCurSource.ts` — the one `CloudBillingSource`
+  implementation: reads a real (or sample) AWS CUR file
+- `sample-data/aws-cur-sample.csv` — synthetic 3-day, hourly CUR sample for
+  a common 3-tier app (EC2, RDS, ALB, Lambda, S3); regenerate with
+  `node scripts/generate-aws-cur-sample.mjs`
 - `scripts/carbon-smoke.mjs` — the runner used by all commands above

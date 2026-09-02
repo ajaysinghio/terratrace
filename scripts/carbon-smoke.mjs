@@ -1,26 +1,16 @@
 import { fileURLToPath } from "node:url";
-import { dirname, resolve, extname } from "node:path";
-import {
-  CostExplorerCsvSource,
-  CostExplorerJsonSource,
-  estimateCarbon,
-  energyModelFor,
-  gridIntensity,
-} from "../packages/core/dist/index.js";
+import { dirname, resolve } from "node:path";
+import { AWSCurSource, estimateCarbon, energyModelFor, gridIntensity } from "../packages/core/dist/index.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const inputPath = process.argv[2]
   ? resolve(process.cwd(), process.argv[2])
-  : resolve(__dirname, "..", "sample-data", "aws-cost-explorer-sample.csv");
+  : resolve(__dirname, "..", "sample-data", "aws-cur-sample.csv");
 
-const isJson = extname(inputPath).toLowerCase() === ".json";
-const source = isJson
-  ? new CostExplorerJsonSource({ filePath: inputPath })
-  : new CostExplorerCsvSource(inputPath);
+const source = new AWSCurSource(inputPath);
+const records = await source.fetchUsage({ start: "2026-08-01", end: "2026-08-04" });
 
-const records = await source.fetchUsage({ start: "2026-07-01", end: "2026-07-31" });
-
-console.log(`\nParsed ${records.length} usage records (${isJson ? "JSON" : "CSV"}) from:\n  ${inputPath}\n`);
+console.log(`\nParsed ${records.length} usage records from:\n  ${inputPath}\n`);
 
 const awsModel = energyModelFor("aws");
 if (!awsModel) throw new Error("AWS energy model not registered");

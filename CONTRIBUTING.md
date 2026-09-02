@@ -5,7 +5,7 @@
 - Node.js >= 20
 - pnpm (via corepack: `corepack enable pnpm`, or `corepack prepare pnpm@latest --activate`)
 - An Anthropic API key for any work touching `explainFinding` / `generateFix` / `answerQuery`
-- AWS credentials with `ce:GetCostAndUsage` for any work touching `AWSCurSource`
+- A real AWS Cost and Usage Report (CUR) export for any work touching `AWSCurSource` against real data — see TESTING.md; the sample fixture works without one
 
 ## Local setup
 
@@ -39,7 +39,7 @@ terratrace/
     │       ├── types.ts           (shared domain types)
     │       ├── billing/
     │       │   ├── CloudBillingSource.ts   (interface)
-    │       │   └── AWSCurSource.ts         (AWS Cost Explorer implementation)
+    │       │   └── AWSCurSource.ts         (reads a real AWS CUR file)
     │       ├── analyzer/
     │       │   ├── CodeAnalyzer.ts         (interface + DetectionRule interface)
     │       │   ├── PythonAnalyzer.ts       (tree-sitter-python implementation)
@@ -78,8 +78,9 @@ Every cross-cutting concern is hidden behind a TypeScript interface in
 another later without touching any caller.
 
 - **`CloudBillingSource`** — one method, `fetchUsage({ start, end })`. Only
-  implementation today is `AWSCurSource` (AWS Cost Explorer). **To add a new
-  cloud** (GCP, Azure, on-prem metering): write a new class implementing
+  implementation today is `AWSCurSource`, which reads a real AWS CUR file.
+  **To add a new cloud** (GCP, Azure, on-prem metering) or a new AWS fetch
+  mode (e.g. live Athena): write a new class implementing
   `CloudBillingSource` in `packages/core/src/billing/`; nothing else changes.
 
 - **`CodeAnalyzer`** — one method, `analyzeFile(filePath, sourceCode)`. Only
@@ -198,4 +199,4 @@ and (for analyzer bugs) the offending code snippet.
 - [x] `pnpm install` works cleanly at the repo root.
 - [x] `pnpm scan` finds the planted N+1 query in `sample-repo/orders/views.py`.
 - [ ] `explainFinding` returns a real Claude response (not a stub) for that finding — needs a real `ANTHROPIC_API_KEY` in `.env`.
-- [ ] `AWSCurSource.fetchUsage(...)` returns real usage records from Cost Explorer — needs real AWS credentials with `ce:GetCostAndUsage` permission.
+- [ ] `AWSCurSource.fetchUsage(...)` returns real usage records — needs a real AWS CUR export file (see TESTING.md).

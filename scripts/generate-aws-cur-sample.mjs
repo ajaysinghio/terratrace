@@ -1,9 +1,9 @@
-// Generates sample-billing/cur-sample.csv: a synthetic AWS Cost and Usage
+// Generates sample-data/aws-cur-sample.csv: a synthetic AWS Cost and Usage
 // Report (CUR 1.0, flat CSV form) for a small 3-tier web app. Column names
 // match AWS's real CUR data dictionary so it can stand in for a real export
 // when there's no billing-console access to pull one. Not real billing data.
 //
-// Run: node sample-billing/generate-cur.mjs
+// Run: node scripts/generate-aws-cur-sample.mjs
 
 import { writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -268,6 +268,6 @@ for (const row of rows) {
   lines.push(COLUMNS.map((col) => csvEscape(row[col])).join(","));
 }
 
-const outPath = join(__dirname, "cur-sample.csv");
+const outPath = join(__dirname, "..", "sample-data", "aws-cur-sample.csv");
 writeFileSync(outPath, lines.join("\n") + "\n");
 console.log(`Wrote ${rows.length} rows to ${outPath}`);

@@ -16,15 +16,16 @@ import { sampleUsageRecords } from "./sampleUsage.js";
 const DEFAULT_PATTERN = "./sample-repo/**/*.py";
 
 async function loadUsageRecords(): Promise<UsageRecord[]> {
-  if (process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY) {
+  const curFilePath = process.env.TERRATRACE_CUR_FILE;
+  if (curFilePath) {
     try {
-      const billing = new AWSCurSource();
+      const billing = new AWSCurSource(curFilePath);
       const end = new Date().toISOString().slice(0, 10);
       const start = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
       const records = await billing.fetchUsage({ start, end });
       if (records.length > 0) return records;
     } catch (error) {
-      console.error("terratrace: AWS Cost Explorer lookup failed, falling back to sample billing data.", error);
+      console.error(`terratrace: failed to read CUR file at ${curFilePath}, falling back to sample billing data.`, error);
     }
   }
   return sampleUsageRecords;

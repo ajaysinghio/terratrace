@@ -54,7 +54,9 @@ function watts(family: FamilyWatts, cpuUtil: number): number {
 
 function extractEc2Family(record: UsageRecord): string {
   // Prefer resourceId (populated by CUR / by CSV rows that carry
-  // instance-type). Fall back to usageUnit and to a family-average.
+  // instance-type). Fall back to usageUnit and to a family-average. Also
+  // matches RDS-style types ("db.t3.medium") since the regex just looks
+  // for the family.size pattern anywhere in the string.
   const source = record.resourceId ?? record.usageUnit ?? "";
   const match = source.match(/([a-z]+\d)[a-z]*\./i);
   return match?.[1]?.toLowerCase() ?? "";
@@ -86,6 +88,7 @@ function estimateLambdaKwh(record: UsageRecord): number {
 function canonicaliseAwsService(name: string): string {
   const s = name.trim();
   if (/^AmazonEC2$/i.test(s) || /Elastic Compute Cloud/i.test(s)) return "AmazonEC2";
+  if (/^AmazonRDS$/i.test(s) || /Relational Database Service/i.test(s)) return "AmazonRDS";
   if (/^AmazonS3$/i.test(s) || /Simple Storage Service/i.test(s)) return "AmazonS3";
   if (/^AWSLambda$/i.test(s) || /Lambda/i.test(s)) return "AWSLambda";
   return s;
@@ -96,6 +99,10 @@ export const awsEnergyModel: EnergyModel = {
   estimateKwh(record) {
     switch (canonicaliseAwsService(record.service)) {
       case "AmazonEC2":
+      // RDS runs on the same EC2-family instance hardware, so it reuses
+      // the same per-family wattage table rather than a separate one —
+      // matches CCF's own approach (no RDS-specific table either).
+      case "AmazonRDS":
         return estimateEc2Kwh(record);
       case "AmazonS3":
         return estimateS3Kwh(record);

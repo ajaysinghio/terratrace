@@ -2,15 +2,15 @@ import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import { parseCostExplorerCsv } from "../CostExplorerCsvSource.js";
+import { parseCurCsv } from "../AWSCurSource.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const SAMPLE_CUR_PATH = resolve(__dirname, "../../../../../sample-billing/cur-sample.csv");
+const SAMPLE_CUR_PATH = resolve(__dirname, "../../../../../sample-data/aws-cur-sample.csv");
 
-describe("parseCostExplorerCsv against a real-CUR-shaped fixture", () => {
-  it("parses every row in sample-billing/cur-sample.csv", async () => {
+describe("parseCurCsv against a real-CUR-shaped fixture", () => {
+  it("parses every row in sample-data/aws-cur-sample.csv", async () => {
     const csv = await readFile(SAMPLE_CUR_PATH, "utf8");
-    const records = parseCostExplorerCsv(csv);
+    const records = parseCurCsv(csv);
 
     expect(records).toHaveLength(306);
     for (const record of records) {
@@ -22,12 +22,12 @@ describe("parseCostExplorerCsv against a real-CUR-shaped fixture", () => {
     }
   });
 
-  it("maps an EC2 line item's lineItem/* and product/* columns correctly", async () => {
+  it("maps an EC2 line item's lineItem/* and product/* columns correctly, using the short product code as service", async () => {
     const csv = await readFile(SAMPLE_CUR_PATH, "utf8");
-    const records = parseCostExplorerCsv(csv);
+    const records = parseCurCsv(csv);
 
     const ec2Record = records.find(
-      (r) => r.service === "Amazon Elastic Compute Cloud" && r.periodStart === "2026-08-01T00:00:00Z",
+      (r) => r.service === "AmazonEC2" && r.periodStart === "2026-08-01T00:00:00Z",
     );
 
     expect(ec2Record).toBeDefined();
@@ -40,19 +40,11 @@ describe("parseCostExplorerCsv against a real-CUR-shaped fixture", () => {
     expect(ec2Record?.periodEnd).toBe("2026-08-01T01:00:00Z");
   });
 
-  it("covers the full service mix (EC2, RDS, ALB, Lambda, S3)", async () => {
+  it("covers the full service mix using AWS's short product codes (matches RULE_SERVICE_MAP and CCF's line_item_product_code)", async () => {
     const csv = await readFile(SAMPLE_CUR_PATH, "utf8");
-    const records = parseCostExplorerCsv(csv);
+    const records = parseCurCsv(csv);
     const services = new Set(records.map((r) => r.service));
 
-    expect(services).toEqual(
-      new Set([
-        "Amazon Elastic Compute Cloud",
-        "Amazon Relational Database Service",
-        "Amazon Elastic Load Balancing",
-        "AWS Lambda",
-        "Amazon Simple Storage Service",
-      ]),
-    );
+    expect(services).toEqual(new Set(["AmazonEC2", "AmazonRDS", "AWSELB", "AWSLambda", "AmazonS3"]));
   });
 });

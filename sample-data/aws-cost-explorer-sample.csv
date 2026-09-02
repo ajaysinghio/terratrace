@@ -1,9 +1,0 @@
-periodStart,periodEnd,service,region,usageAmount,usageUnit,costUsd,instanceType
-2026-07-01,2026-07-31,Amazon Elastic Compute Cloud - Compute,us-east-1,720,Hrs,50.40,m5.large
-2026-07-01,2026-07-31,Amazon Elastic Compute Cloud - Compute,us-east-1,1440,Hrs,150.00,r5.xlarge
-2026-07-01,2026-07-31,Amazon Elastic Compute Cloud - Compute,us-west-2,720,Hrs,50.40,c5.large
-2026-07-01,2026-07-31,Amazon Elastic Compute Cloud - Compute,eu-west-1,2160,Hrs,175.20,m6i.large
-2026-07-01,2026-07-31,Amazon Elastic Compute Cloud - Compute,ap-south-1,720,Hrs,45.10,t3.medium
-2026-07-01,2026-07-31,Amazon Simple Storage Service,us-east-1,500,GB-Mo,11.50,
-2026-07-01,2026-07-31,Amazon Simple Storage Service,eu-west-1,200,GB-Mo,4.60,
-2026-07-01,2026-07-31,AWS Lambda,us-east-1,45000,GB-Seconds,0.75,

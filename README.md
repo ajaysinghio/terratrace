@@ -85,9 +85,7 @@ Copy `.env.example` to `.env` and fill in what you need:
 |--------------------------|----------------------------------------------------|
 | `ANTHROPIC_API_KEY`      | CLI / GitHub Action (`explainFinding`, `generateFix`) — set this **or** `OPENROUTER_API_KEY` |
 | `OPENROUTER_API_KEY`     | Alternative to `ANTHROPIC_API_KEY` — routes Claude calls through OpenRouter's OpenAI-compatible endpoint (default model `anthropic/claude-sonnet-4.6`) |
-| `AWS_ACCESS_KEY_ID`      | AWS Cost Explorer billing lookups                 |
-| `AWS_SECRET_ACCESS_KEY`  | AWS Cost Explorer billing lookups                 |
-| `AWS_REGION`             | AWS Cost Explorer billing lookups (default `us-east-1`) |
+| `TERRATRACE_CUR_FILE`    | Path to a real AWS Cost and Usage Report CSV to correlate findings against — falls back to bundled sample billing data if unset |
 | `GITHUB_TOKEN`           | GitHub Action (posting PR comments)               |
 
 The CLI does not auto-load `.env` — pass it via Node's built-in flag: `node --env-file=.env packages/cli/dist/index.js …` (shown below). If you'd rather `export` the vars in your shell, that works too.
