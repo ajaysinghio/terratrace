@@ -57,11 +57,25 @@ If your export uses different header names, add them to `COLUMN_ALIASES` in
 
 Pulling your own CUR requires setting one up in your AWS account first
 (Billing and Cost Management → Data Exports → Standard data export, hourly
-granularity, resource IDs enabled), then syncing the delivered files:
+granularity, resource IDs enabled). From there, either:
 
-```bash
-aws s3 sync s3://your-bucket/your-export-name/ ./my-cur-data/
-```
+- **Download once, run offline**: sync the delivered files and point
+  `carbon-smoke.mjs` / `TERRATRACE_CUR_FILE` at a `.csv` from the sync:
+
+  ```bash
+  aws s3 sync s3://your-bucket/your-export-name/ ./my-cur-data/
+  ```
+
+- **Fetch live**: set `TERRATRACE_CUR_S3_BUCKET` and
+  `TERRATRACE_CUR_S3_MANIFEST_KEY` (pointing at the `*-Manifest.json` AWS
+  writes alongside each billing period's data files) and the CLI's
+  `AWSCurS3Source` will fetch and decompress the report shards itself —
+  see `packages/core/src/billing/AWSCurS3Source.ts`. CUR 1.0 CSV(.gz)
+  manifests only; CUR 2.0's Parquet export isn't supported yet. Needs AWS
+  credentials available in the environment (env vars, `~/.aws/credentials`
+  profile, or an IAM role) with `s3:GetObject` on that bucket — the AWS SDK
+  resolves these itself via its default credential chain, nothing
+  TerraTrace-specific to configure.
 
 AWS Cost Explorer's `GetCostAndUsage` API and CloudWatch are **not** CUR —
 they're coarser, separate AWS billing APIs that CCF explicitly doesn't use
@@ -117,8 +131,10 @@ defensibility:
 - `packages/core/src/carbon/correlate.ts` — maps code findings to the AWS
   service their rule implicates (`RULE_SERVICE_MAP`), then to billing usage
   for that service
-- `packages/core/src/billing/AWSCurSource.ts` — the one `CloudBillingSource`
-  implementation: reads a real (or sample) AWS CUR file
+- `packages/core/src/billing/AWSCurSource.ts` — reads a real (or sample)
+  AWS CUR file from local disk
+- `packages/core/src/billing/AWSCurS3Source.ts` — fetches a real CUR export
+  live from S3 given its manifest location
 - `sample-data/aws-cur-sample.csv` — synthetic 3-day, hourly CUR sample for
   a common 3-tier app (EC2, RDS, ALB, Lambda, S3); regenerate with
   `node scripts/generate-aws-cur-sample.mjs`

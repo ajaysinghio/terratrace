@@ -5,8 +5,10 @@ import {
   PythonAnalyzer,
   AnthropicProvider,
   AWSCurSource,
+  AWSCurS3Source,
   correlateFindingsWithUsage,
   RULE_SERVICE_MAP,
+  type CloudBillingSource,
   type CodeFinding,
   type EnrichedFinding,
   type UsageRecord,
@@ -15,17 +17,34 @@ import { sampleUsageRecords } from "./sampleUsage.js";
 
 const DEFAULT_PATTERN = "./sample-repo/**/*.py";
 
-async function loadUsageRecords(): Promise<UsageRecord[]> {
+function resolveBillingSource(): { label: string; source: CloudBillingSource } | undefined {
   const curFilePath = process.env.TERRATRACE_CUR_FILE;
   if (curFilePath) {
+    return { label: `CUR file at ${curFilePath}`, source: new AWSCurSource(curFilePath) };
+  }
+
+  const manifestBucket = process.env.TERRATRACE_CUR_S3_BUCKET;
+  const manifestKey = process.env.TERRATRACE_CUR_S3_MANIFEST_KEY;
+  if (manifestBucket && manifestKey) {
+    return {
+      label: `CUR manifest at s3://${manifestBucket}/${manifestKey}`,
+      source: new AWSCurS3Source({ manifestBucket, manifestKey }),
+    };
+  }
+
+  return undefined;
+}
+
+async function loadUsageRecords(): Promise<UsageRecord[]> {
+  const resolved = resolveBillingSource();
+  if (resolved) {
     try {
-      const billing = new AWSCurSource(curFilePath);
       const end = new Date().toISOString().slice(0, 10);
       const start = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-      const records = await billing.fetchUsage({ start, end });
+      const records = await resolved.source.fetchUsage({ start, end });
       if (records.length > 0) return records;
     } catch (error) {
-      console.error(`terratrace: failed to read CUR file at ${curFilePath}, falling back to sample billing data.`, error);
+      console.error(`terratrace: failed to fetch usage from ${resolved.label}, falling back to sample billing data.`, error);
     }
   }
   return sampleUsageRecords;

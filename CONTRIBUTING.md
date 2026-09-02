@@ -6,6 +6,7 @@
 - pnpm (via corepack: `corepack enable pnpm`, or `corepack prepare pnpm@latest --activate`)
 - An Anthropic API key for any work touching `explainFinding` / `generateFix` / `answerQuery`
 - A real AWS Cost and Usage Report (CUR) export for any work touching `AWSCurSource` against real data — see TESTING.md; the sample fixture works without one
+- AWS credentials (env vars, `~/.aws/credentials` profile, or an IAM role) with `s3:GetObject` on the CUR bucket for any work touching `AWSCurS3Source` — it uses the AWS SDK's default credential chain, not a TerraTrace-specific config
 
 ## Local setup
 
@@ -39,7 +40,8 @@ terratrace/
     │       ├── types.ts           (shared domain types)
     │       ├── billing/
     │       │   ├── CloudBillingSource.ts   (interface)
-    │       │   └── AWSCurSource.ts         (reads a real AWS CUR file)
+    │       │   ├── AWSCurSource.ts         (reads a local AWS CUR file)
+    │       │   └── AWSCurS3Source.ts       (fetches a CUR export live from S3)
     │       ├── analyzer/
     │       │   ├── CodeAnalyzer.ts         (interface + DetectionRule interface)
     │       │   ├── PythonAnalyzer.ts       (tree-sitter-python implementation)
@@ -77,9 +79,10 @@ Every cross-cutting concern is hidden behind a TypeScript interface in
 `@terratrace/core`, so a single cloud/language/model can be swapped for
 another later without touching any caller.
 
-- **`CloudBillingSource`** — one method, `fetchUsage({ start, end })`. Only
-  implementation today is `AWSCurSource`, which reads a real AWS CUR file.
-  **To add a new cloud** (GCP, Azure, on-prem metering) or a new AWS fetch
+- **`CloudBillingSource`** — one method, `fetchUsage({ start, end })`. Two
+  AWS implementations today: `AWSCurSource` (reads a local CUR file) and
+  `AWSCurS3Source` (fetches one live from S3, given its manifest location).
+  **To add a new cloud** (GCP, Azure, on-prem metering) or another AWS fetch
   mode (e.g. live Athena): write a new class implementing
   `CloudBillingSource` in `packages/core/src/billing/`; nothing else changes.
 

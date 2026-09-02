@@ -85,8 +85,11 @@ Copy `.env.example` to `.env` and fill in what you need:
 |--------------------------|----------------------------------------------------|
 | `ANTHROPIC_API_KEY`      | CLI / GitHub Action (`explainFinding`, `generateFix`) — set this **or** `OPENROUTER_API_KEY` |
 | `OPENROUTER_API_KEY`     | Alternative to `ANTHROPIC_API_KEY` — routes Claude calls through OpenRouter's OpenAI-compatible endpoint (default model `anthropic/claude-sonnet-4.6`) |
-| `TERRATRACE_CUR_FILE`    | Path to a real AWS Cost and Usage Report CSV to correlate findings against — falls back to bundled sample billing data if unset |
+| `TERRATRACE_CUR_FILE`    | Path to a local AWS Cost and Usage Report CSV to correlate findings against |
+| `TERRATRACE_CUR_S3_BUCKET` / `TERRATRACE_CUR_S3_MANIFEST_KEY` | Fetch a real CUR export live from S3 instead — both required together; ignored if `TERRATRACE_CUR_FILE` is set. Also needs standard AWS credentials available (env vars, `~/.aws/credentials` profile, or an IAM role) with `s3:GetObject` on that bucket — the AWS SDK picks these up itself, there's no separate TerraTrace variable for them |
 | `GITHUB_TOKEN`           | GitHub Action (posting PR comments)               |
+
+None of the CUR variables are required — the CLI falls back to bundled sample billing data if none are set.
 
 The CLI does not auto-load `.env` — pass it via Node's built-in flag: `node --env-file=.env packages/cli/dist/index.js …` (shown below). If you'd rather `export` the vars in your shell, that works too.
 

@@ -2,6 +2,7 @@ export * from "./types.js";
 
 export * from "./billing/CloudBillingSource.js";
 export * from "./billing/AWSCurSource.js";
+export * from "./billing/AWSCurS3Source.js";
 
 export * from "./analyzer/CodeAnalyzer.js";
 export * from "./analyzer/PythonAnalyzer.js";
