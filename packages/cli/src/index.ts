@@ -8,6 +8,7 @@ import {
   AWSCurS3Source,
   correlateFindingsWithUsage,
   RULE_SERVICE_MAP,
+  type CarbonEstimate,
   type CloudBillingSource,
   type CodeFinding,
   type EnrichedFinding,
@@ -116,11 +117,22 @@ async function main(): Promise<void> {
 
   const totalKgCO2e = enrichedFindings.reduce((sum, f) => sum + (f.estimate?.kgCO2e ?? 0), 0);
   if (totalKgCO2e > 0) {
+    const confidence = overallConfidence(enrichedFindings.map((f) => f.estimate));
     console.error(
       `terratrace: estimated ${totalKgCO2e.toFixed(4)} kgCO2e attributable to these findings ` +
-        `(ccf-derived, low confidence — see carbonMath.ts before quoting publicly).`,
+        `(ccf-derived, ${confidence} confidence — see carbonMath.ts before quoting publicly).`,
     );
   }
+}
+
+const CONFIDENCE_RANK: Record<CarbonEstimate["confidence"], number> = { low: 0, medium: 1, high: 2 };
+
+/** Worst (most conservative) confidence across findings with an estimate. */
+function overallConfidence(estimates: Array<CarbonEstimate | undefined>): CarbonEstimate["confidence"] {
+  return estimates.reduce<CarbonEstimate["confidence"]>((worst, estimate) => {
+    if (!estimate) return worst;
+    return CONFIDENCE_RANK[estimate.confidence] < CONFIDENCE_RANK[worst] ? estimate.confidence : worst;
+  }, "high");
 }
 
 main().catch((error) => {
