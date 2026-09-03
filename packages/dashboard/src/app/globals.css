@@ -184,6 +184,21 @@ body {
   color: var(--text-muted);
 }
 
+.finding__pr-link {
+  font-size: 0.9rem;
+  margin-top: 0.5rem;
+}
+
+.finding__pr-link a {
+  color: #1f883d;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.finding__pr-link a:hover {
+  text-decoration: underline;
+}
+
 .empty-state {
   max-width: 600px;
   margin: 4rem auto;

@@ -96,6 +96,13 @@ export interface EnrichedFinding extends CodeFinding {
   estimate?: CarbonEstimate;
   explanation?: string;
   suggestedFixDiff?: string;
+  /**
+   * Same deterministic hash the GitHub Action uses as its PR/Issue label
+   * (`terratrace:<idempotencyKey>`). Populated by the CLI at write time so
+   * the dashboard can link each finding to its PR/Issue without a live
+   * GitHub API call.
+   */
+  idempotencyKey?: string;
 }
 
 export type ValidationFailureReason =

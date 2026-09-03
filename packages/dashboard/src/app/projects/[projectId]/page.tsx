@@ -27,7 +27,7 @@ export default async function ProjectPage({
           {data.project.scannedAt && ` · scanned ${new Date(data.project.scannedAt).toLocaleString()}`}
         </p>
       </header>
-      <Dashboard findings={data.findings} />
+      <Dashboard findings={data.findings} repoUrl={data.project.repoUrl} />
     </div>
   );
 }

@@ -212,7 +212,12 @@ export class SemgrepAnalyzer implements CodeAnalyzer {
     knownRuleIds: string[],
   ): CodeFinding {
     const severity = mapSeverity(result.extra.severity);
-    const snippet = result.extra.lines ?? sliceSnippet(sourceCode, result.start.line, result.end.line);
+    // Always slice from source. Semgrep OSS returns the placeholder string
+    // "requires login" for extra.lines on some rule configurations — using
+    // it as the snippet collapses distinct matches into identical hashes
+    // (same ruleId + filePath + "requires login" → same id → dedup errors
+    // downstream and React duplicate-key warnings on the dashboard).
+    const snippet = sliceSnippet(sourceCode, result.start.line, result.end.line);
     const ruleId = normalizeCheckId(result.check_id, knownRuleIds);
 
     // Deterministic id keyed on the same structural signature the

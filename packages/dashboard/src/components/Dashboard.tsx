@@ -19,6 +19,16 @@ import { computeStats, SEVERITY_COLOR, type FileImpact } from "../lib/stats";
 
 interface DashboardProps {
   findings: EnrichedFinding[];
+  /** GitHub URL for the scanned repo. When set, each finding renders a link
+   * to the label search page — where the GitHub Action's PR or advisory
+   * Issue for that finding appears (they carry the matching label). */
+  repoUrl?: string;
+}
+
+function findingLabelUrl(repoUrl: string | undefined, idempotencyKey: string | undefined): string | undefined {
+  if (!repoUrl || !idempotencyKey) return undefined;
+  const label = `terratrace:${idempotencyKey}`;
+  return `${repoUrl}/labels/${encodeURIComponent(label)}`;
 }
 
 function shortPath(filePath: string): string {
@@ -174,7 +184,7 @@ function EnvironmentalImpact({ totalKgCO2e }: { totalKgCO2e: number }) {
   );
 }
 
-export default function Dashboard({ findings }: DashboardProps) {
+export default function Dashboard({ findings, repoUrl }: DashboardProps) {
   const stats = computeStats(findings);
 
   return (
@@ -245,8 +255,8 @@ export default function Dashboard({ findings }: DashboardProps) {
       <section className="card">
         <h2>Findings</h2>
         <ul className="findings-list">
-          {findings.map((finding) => (
-            <li key={finding.id} className="finding" style={{ borderLeftColor: SEVERITY_COLOR[finding.severity] }}>
+          {findings.map((finding, i) => (
+            <li key={`${finding.id}:${finding.filePath}:${finding.startLine}:${i}`} className="finding" style={{ borderLeftColor: SEVERITY_COLOR[finding.severity] }}>
               <div className="finding__header">
                 <span
                   className="badge"
@@ -272,6 +282,16 @@ export default function Dashboard({ findings }: DashboardProps) {
                   <strong>Explanation:</strong> {finding.explanation}
                 </p>
               )}
+              {(() => {
+                const url = findingLabelUrl(repoUrl, finding.idempotencyKey);
+                return url ? (
+                  <p className="finding__pr-link">
+                    <a href={url} target="_blank" rel="noopener noreferrer">
+                      View PR / advisory Issue on GitHub →
+                    </a>
+                  </p>
+                ) : null;
+              })()}
             </li>
           ))}
         </ul>

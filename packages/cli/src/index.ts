@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import fg from "fast-glob";
@@ -8,6 +9,7 @@ import {
   AnthropicProvider,
   AWSCurSource,
   AWSCurS3Source,
+  computeIdempotencyKey,
   correlateFindingsWithUsage,
   recommendFinding,
   RULE_SERVICE_MAP,
@@ -37,6 +39,34 @@ function resolveBillingSource(): { label: string; source: CloudBillingSource } |
     };
   }
 
+  return undefined;
+}
+
+/**
+ * Resolve the GitHub URL that findings should link back to on the dashboard.
+ * TERRATRACE_REPO_URL wins if set; otherwise we ask `git remote get-url
+ * origin` in the current cwd (the workspace root when invoked via
+ * `pnpm scan`) and normalize the SSH/HTTPS shapes to a plain
+ * https://github.com/owner/repo. Returns undefined if neither works — the
+ * dashboard just omits the link.
+ */
+function resolveRepoUrl(): string | undefined {
+  const explicit = process.env.TERRATRACE_REPO_URL;
+  if (explicit) return normalizeRepoUrl(explicit);
+  try {
+    const remote = execFileSync("git", ["remote", "get-url", "origin"], { encoding: "utf-8" }).trim();
+    return normalizeRepoUrl(remote);
+  } catch {
+    return undefined;
+  }
+}
+
+function normalizeRepoUrl(input: string): string | undefined {
+  const trimmed = input.trim();
+  const ssh = trimmed.match(/^git@github\.com:([^/]+)\/([^/]+?)(?:\.git)?$/);
+  if (ssh) return `https://github.com/${ssh[1]}/${ssh[2]}`;
+  const https = trimmed.match(/^https?:\/\/github\.com\/([^/]+)\/([^/]+?)(?:\.git)?\/?$/);
+  if (https) return `https://github.com/${https[1]}/${https[2]}`;
   return undefined;
 }
 
@@ -151,11 +181,23 @@ async function main(): Promise<void> {
       }
     }
 
-    enrichedFindings.push({ ...finding, estimate, explanation, suggestedFixDiff });
+    enrichedFindings.push({
+      ...finding,
+      estimate,
+      explanation,
+      suggestedFixDiff,
+      idempotencyKey: computeIdempotencyKey(finding),
+    });
   }
 
+  const repoUrl = resolveRepoUrl();
   const output = {
-    project: { id: projectId, name: projectName, scannedAt: new Date().toISOString() },
+    project: {
+      id: projectId,
+      name: projectName,
+      repoUrl,
+      scannedAt: new Date().toISOString(),
+    },
     findings: enrichedFindings,
   };
 
