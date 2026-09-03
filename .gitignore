@@ -1,5 +1,8 @@
 node_modules/
 dist/
+# The GitHub Action ships a committed bundle — Actions run the pre-built
+# dist/index.js, not source. Track it explicitly.
+!packages/github-action/dist/
 packages/github-action/lib/
 .next/
 .env

@@ -5,7 +5,7 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "build": "tsc -b && ncc build lib/index.js -o dist --minify",
+    "build": "tsc -b && ncc build lib/index.js -o dist --minify && node ./scripts/copy-rules.mjs",
     "typecheck": "tsc -b",
     "lint": "echo \"(no linter configured for @terratrace/github-action)\""
   },

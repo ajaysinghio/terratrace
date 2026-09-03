@@ -1,12 +1,15 @@
+import path from "node:path";
 import { readFile } from "node:fs/promises";
+import { fileURLToPath } from "node:url";
 import * as core from "@actions/core";
 import * as github from "@actions/github";
 import { applyPatch } from "diff";
 import fg from "fast-glob";
 import {
-  PythonAnalyzer,
+  SemgrepAnalyzer,
   AnthropicProvider,
   recommendFinding,
+  type CodeAnalyzer,
   type CodeFinding,
   type Recommendation,
 } from "@terratrace/core";
@@ -21,6 +24,14 @@ type Octokit = ReturnType<typeof github.getOctokit>;
 const FIX_PR_EVENTS = new Set(["push", "schedule", "workflow_dispatch"]);
 const SCAN_GLOB = "**/*.py";
 const SCAN_IGNORE = ["**/node_modules/**", "**/.venv/**", "**/venv/**", "**/dist/**", "**/lib/**"];
+const WONTFIX_LABEL = "terratrace:wontfix";
+
+// Post-bundling (ncc), this file lives at dist/index.js and the action's
+// build step copies the Semgrep rule pack into dist/rules-semgrep/. Resolve
+// the pack next to the bundle so it works regardless of which repo the
+// Action is invoked from.
+const HERE = path.dirname(fileURLToPath(import.meta.url));
+const BUNDLED_SEMGREP_RULES = path.join(HERE, "rules-semgrep");
 
 async function run(): Promise<void> {
   const githubToken = core.getInput("github-token", { required: true });
@@ -28,7 +39,7 @@ async function run(): Promise<void> {
 
   const context = github.context;
   const octokit = github.getOctokit(githubToken);
-  const analyzer = new PythonAnalyzer();
+  const analyzer = await buildAnalyzer();
   const llm = new AnthropicProvider(undefined, anthropicApiKey);
 
   if (context.eventName === "pull_request") {
@@ -46,9 +57,23 @@ async function run(): Promise<void> {
   );
 }
 
+async function buildAnalyzer(): Promise<CodeAnalyzer> {
+  const semgrepAvailable = await SemgrepAnalyzer.isAvailable();
+  if (!semgrepAvailable) {
+    throw new Error(
+      "terratrace: semgrep not on PATH. The Action requires semgrep for detection — " +
+        "add `- run: pip install semgrep` to your workflow before this step. " +
+        "(The tree-sitter PythonAnalyzer is intentionally not loaded in the Action to " +
+        "avoid platform-specific native-module bundling for CI runners.)",
+    );
+  }
+  core.info("terratrace: semgrep detected — using SemgrepAnalyzer.");
+  return new SemgrepAnalyzer({ rulesDir: BUNDLED_SEMGREP_RULES });
+}
+
 async function runPullRequestFlow(
   octokit: Octokit,
-  analyzer: PythonAnalyzer,
+  analyzer: CodeAnalyzer,
   llm: AnthropicProvider,
 ): Promise<void> {
   const context = github.context;
@@ -112,7 +137,7 @@ async function runPullRequestFlow(
 
 async function runFixPrFlow(
   octokit: Octokit,
-  analyzer: PythonAnalyzer,
+  analyzer: CodeAnalyzer,
   llm: AnthropicProvider,
 ): Promise<void> {
   const context = github.context;
@@ -132,6 +157,7 @@ async function runFixPrFlow(
 
   let opened = 0;
   let skippedExisting = 0;
+  let skippedWontfix = 0;
   let skippedInvalid = 0;
 
   for (const filePath of files) {
@@ -178,12 +204,14 @@ async function runFixPrFlow(
 
       if (outcome === "opened") opened++;
       else if (outcome === "existing") skippedExisting++;
+      else if (outcome === "wontfix") skippedWontfix++;
       else skippedInvalid++;
     }
   }
 
   core.info(
-    `terratrace: fix-pr flow done — opened ${opened}, skipped-existing ${skippedExisting}, skipped-invalid ${skippedInvalid}.`,
+    `terratrace: fix-pr flow done — opened ${opened}, skipped-existing ${skippedExisting}, ` +
+      `skipped-wontfix ${skippedWontfix}, skipped-invalid ${skippedInvalid}.`,
   );
 }
 
@@ -198,18 +226,26 @@ interface OpenFixPrArgs {
   llm: AnthropicProvider;
 }
 
-async function maybeOpenFixPr(args: OpenFixPrArgs): Promise<"opened" | "existing" | "failed"> {
+async function maybeOpenFixPr(
+  args: OpenFixPrArgs,
+): Promise<"opened" | "existing" | "wontfix" | "failed"> {
   const { octokit, owner, repo, defaultBranch, baseSha, sourceCode, recommendation, llm } = args;
   const key = recommendation.idempotencyKey;
   const label = `terratrace:${key}`;
   const branch = `terratrace/${key}`;
 
-  const existing = await findOpenPrByLabel(octokit, owner, repo, label);
-  if (existing) {
+  const skip = await findSkipReason(octokit, owner, repo, label);
+  if (skip?.reason === "open") {
     core.info(
-      `terratrace: existing fix PR #${existing.number} already tracks ${recommendation.finding.filePath}:${recommendation.finding.startLine} (label ${label}); leaving it alone.`,
+      `terratrace: existing fix PR #${skip.number} already tracks ${recommendation.finding.filePath}:${recommendation.finding.startLine} (label ${label}); leaving it alone.`,
     );
     return "existing";
+  }
+  if (skip?.reason === "wontfix") {
+    core.info(
+      `terratrace: closed fix PR #${skip.number} for ${recommendation.finding.filePath}:${recommendation.finding.startLine} is labelled '${WONTFIX_LABEL}' — user rejected; not re-opening.`,
+    );
+    return "wontfix";
   }
 
   const patched = applyPatchOrThrow(sourceCode, recommendation.fixDiff);
@@ -221,6 +257,7 @@ async function maybeOpenFixPr(args: OpenFixPrArgs): Promise<"opened" | "existing
   }
 
   await ensureLabel(octokit, owner, repo, label);
+  await ensureLabel(octokit, owner, repo, WONTFIX_LABEL);
   await ensureBranch(octokit, owner, repo, branch, baseSha);
   await commitPatchedFile(octokit, {
     owner,
@@ -262,21 +299,45 @@ async function maybeOpenFixPr(args: OpenFixPrArgs): Promise<"opened" | "existing
   return "opened";
 }
 
-async function findOpenPrByLabel(
+/**
+ * Idempotency + user-consent lookup for a given finding's fix PR.
+ *
+ * - An OPEN PR carrying the finding's hash label means "we already opened
+ *   this fix, don't spam another." Return { reason: "open" }.
+ * - A CLOSED PR carrying both the hash label AND `terratrace:wontfix` means
+ *   the user rejected the fix on purpose. Do NOT re-raise on the next scan
+ *   — the user has opted out. Return { reason: "wontfix" }.
+ * - Anything else (no matching PR, or a closed PR without the wontfix
+ *   label — i.e. merged, or closed without an explicit opt-out) → go ahead
+ *   and open a fresh PR.
+ */
+async function findSkipReason(
   octokit: Octokit,
   owner: string,
   repo: string,
   label: string,
-): Promise<{ number: number } | undefined> {
-  const { data: issues } = await octokit.rest.issues.listForRepo({
+): Promise<{ number: number; reason: "open" | "wontfix" } | undefined> {
+  const open = await octokit.rest.issues.listForRepo({
     owner,
     repo,
     state: "open",
     labels: label,
     per_page: 5,
   });
-  const pr = issues.find((issue) => issue.pull_request !== undefined);
-  return pr ? { number: pr.number } : undefined;
+  const openPr = open.data.find((issue) => issue.pull_request !== undefined);
+  if (openPr) return { number: openPr.number, reason: "open" };
+
+  const closedWontfix = await octokit.rest.issues.listForRepo({
+    owner,
+    repo,
+    state: "closed",
+    labels: `${label},${WONTFIX_LABEL}`,
+    per_page: 5,
+  });
+  const closedPr = closedWontfix.data.find((issue) => issue.pull_request !== undefined);
+  if (closedPr) return { number: closedPr.number, reason: "wontfix" };
+
+  return undefined;
 }
 
 async function ensureLabel(
@@ -370,6 +431,8 @@ function buildPrBody(recommendation: Recommendation, explanation?: string): stri
     "```",
     "",
     "</details>",
+    "",
+    `_Not the fix you want? Close this PR and add the \`${WONTFIX_LABEL}\` label — TerraTrace won't re-open a PR for this finding on subsequent scans._`,
     "",
     `<!-- terratrace-id: ${idempotencyKey} -->`,
   ];

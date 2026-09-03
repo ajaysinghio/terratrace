@@ -1,0 +1,33 @@
+name: TerraTrace (fix PRs)
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+  # Uncomment to also run on a schedule:
+  # schedule:
+  #   - cron: "0 6 * * 1"   # Monday 06:00 UTC
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Semgrep is a Python package; install it before the Action step so
+      # SemgrepAnalyzer's subprocess call resolves. Detection depends on
+      # this — the Action fails loud if semgrep is missing.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install semgrep
+
+      - name: Run TerraTrace
+        uses: ./packages/github-action
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
