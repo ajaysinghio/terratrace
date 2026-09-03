@@ -15,6 +15,16 @@ permissions:
   # the LLM can't produce a validated fix diff.
   issues: write
 
+# Serialize fix-PR runs per ref: the idempotency check-then-create in
+# maybeOpenFixPr/maybeOpenAdvisoryIssue isn't atomic, so two runs racing on
+# the same findings can both decide a PR doesn't exist yet and collide on
+# `pulls.create` (one fails with "A pull request already exists"). Queuing
+# instead of cancelling means a run that's mid-flight opening PRs always
+# finishes before the next one starts.
+concurrency:
+  group: terratrace-fix-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   scan:
     runs-on: ubuntu-latest
