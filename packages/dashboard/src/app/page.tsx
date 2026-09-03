@@ -2,6 +2,12 @@ import Link from "next/link";
 import { loadProjectSummaries } from "../lib/projects";
 import { SEVERITY_COLOR } from "../lib/stats";
 
+// Without this, Next.js sees no dynamic API used and statically prerenders
+// this page once at `next build` time — freezing the project list to
+// whatever scan-output/ contained at build time instead of what's actually
+// on disk when a request comes in.
+export const dynamic = "force-dynamic";
+
 export default async function HomePage() {
   const summaries = await loadProjectSummaries();
 

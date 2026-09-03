@@ -3,6 +3,10 @@ import { notFound } from "next/navigation";
 import Dashboard from "../../../components/Dashboard";
 import { loadProject } from "../../../lib/projects";
 
+// See the note on the home page (../../page.tsx) — force per-request reads
+// of scan-output/ rather than a build-time snapshot.
+export const dynamic = "force-dynamic";
+
 export default async function ProjectPage({
   params,
 }: {
