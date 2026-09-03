@@ -1,4 +1,5 @@
 from django.http import JsonResponse
+from django.db.models import Sum
 
 from .models import Customer, Order
 
@@ -11,10 +12,10 @@ def customer_order_totals(request):
     flag the `for` loop below.
     """
     customers = Customer.objects.all()
-    totals = {}
-
-    for customer in customers:
-        orders = Order.objects.filter(customer_id=customer.id)
-        totals[customer.id] = sum(order.amount for order in orders)
+    order_totals = (
+        Order.objects.values("customer_id")
+        .annotate(total=Sum("amount"))
+    )
+    totals = {row["customer_id"]: row["total"] for row in order_totals}
 
     return JsonResponse(totals)
