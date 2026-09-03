@@ -8,16 +8,19 @@
   },
   "scripts": {
     "build": "tsc -b",
-    "start": "tsc -b && node dist/index.js",
+    "start": "tsc -b && cd ../.. && node packages/cli/dist/index.js",
+    "harness": "tsc -b && node dist/harness.js",
     "typecheck": "tsc -b",
     "lint": "echo \"(no linter configured for @terratrace/cli)\""
   },
   "dependencies": {
     "@terratrace/core": "workspace:*",
+    "diff": "^5.2.0",
     "fast-glob": "^3.3.3"
   },
   "devDependencies": {
-    "typescript": "^7.0.2",
-    "@types/node": "^26.2.0"
+    "@types/diff": "^5.2.3",
+    "@types/node": "^26.2.0",
+    "typescript": "^7.0.2"
   }
 }

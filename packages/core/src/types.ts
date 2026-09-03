@@ -40,6 +40,19 @@ export interface CodeFinding {
   endLine: number;
   snippet: string;
   message: string;
+  /**
+   * Populated by analyzers whose rules ship a deterministic mechanical fix
+   * (Semgrep's `fix:` clause, ESLint autofix, Ruff autofix, ...). When
+   * present, `recommendFinding` prefers this over asking the LLM — cheaper,
+   * faster, and byte-for-byte reproducible. Offsets are byte offsets into
+   * the original source; `replacement` is the text that goes in place.
+   */
+  autofix?: {
+    source: string;
+    replacement: string;
+    startOffset: number;
+    endOffset: number;
+  };
 }
 
 /**
@@ -60,10 +73,58 @@ export interface EvidenceBundle {
     prNumber?: number;
     diffSnippet?: string;
   };
+  /**
+   * Populated by recommendFinding on retry attempts so the LLM can see why
+   * its previous diff was rejected (didn't apply, didn't clear the finding,
+   * or introduced a new one) and correct course.
+   */
+  priorAttemptFailure?: {
+    reason: ValidationFailureReason;
+    detail?: string;
+    previousDiff?: string;
+  };
 }
 
 export interface EnrichedFinding extends CodeFinding {
   estimate?: CarbonEstimate;
   explanation?: string;
   suggestedFixDiff?: string;
+}
+
+export type ValidationFailureReason =
+  | "diff-did-not-apply"
+  | "finding-persists"
+  | "new-findings-appeared";
+
+export interface ValidationResult {
+  ok: boolean;
+  attempts: number;
+  reason?: ValidationFailureReason;
+  detail?: string;
+}
+
+/**
+ * A finding packaged with an LLM-generated fix that has been validated
+ * end-to-end: the diff applies cleanly to the source, and re-running the
+ * analyzer on the patched source shows the finding is gone and no new
+ * findings appeared. Consumers (GitHub Action, CLI, dashboard) can trust
+ * validated recommendations enough to raise a PR from them.
+ *
+ * The idempotencyKey is a stable hash over (ruleId, filePath, snippet) so
+ * repeated scans of the same unresolved finding produce the same key —
+ * callers use it as a branch name / PR label to avoid opening duplicate PRs.
+ */
+export interface Recommendation {
+  idempotencyKey: string;
+  finding: CodeFinding;
+  explanation?: string;
+  fixDiff: string;
+  validation: ValidationResult;
+  /**
+   * Which path produced the fix. "rule-autofix" means the detection rule
+   * carried a deterministic replacement (Semgrep `fix:`, etc.) and the LLM
+   * was never called for this finding. "llm" means the fix came from the
+   * usual generateFix + retry loop.
+   */
+  fixSource: "llm" | "rule-autofix";
 }

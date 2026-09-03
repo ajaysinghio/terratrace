@@ -1,0 +1,23 @@
+rules:
+  - id: n-plus-one-query
+    languages: [python]
+    severity: WARNING
+    message: >-
+      This loop appears to issue a database call on every iteration (N+1 query pattern).
+      Each iteration adds its own round-trip cost and carbon overhead; batch it into a single
+      query (e.g. Django's prefetch_related/select_related, or an equivalent bulk fetch/IN query)
+      before the loop instead.
+    metadata:
+      category: performance
+      terratrace-lens: database
+      terratrace-severity: high
+    patterns:
+      # Match a per-row-looking DB call...
+      - pattern-either:
+          - pattern: $M.objects.filter(...)
+          - pattern: $M.objects.get(...)
+          - pattern: $M.query(...)
+      # ...that is inside a for-loop.
+      - pattern-inside: |
+          for $VAR in $COLL:
+              ...

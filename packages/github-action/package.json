@@ -12,11 +12,14 @@
   "dependencies": {
     "@actions/core": "^3.0.1",
     "@actions/github": "^9.1.1",
-    "@terratrace/core": "workspace:*"
+    "@terratrace/core": "workspace:*",
+    "diff": "^5.2.0",
+    "fast-glob": "^3.3.3"
   },
   "devDependencies": {
+    "@types/diff": "^5.2.3",
+    "@types/node": "^26.2.0",
     "@vercel/ncc": "^0.45.0",
-    "typescript": "^7.0.2",
-    "@types/node": "^26.2.0"
+    "typescript": "^7.0.2"
   }
 }

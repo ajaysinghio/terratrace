@@ -3,13 +3,17 @@ import path from "node:path";
 import fg from "fast-glob";
 import {
   PythonAnalyzer,
+  SemgrepAnalyzer,
+  CompositeAnalyzer,
   AnthropicProvider,
   AWSCurSource,
   AWSCurS3Source,
   correlateFindingsWithUsage,
+  recommendFinding,
   RULE_SERVICE_MAP,
   type CarbonEstimate,
   type CloudBillingSource,
+  type CodeAnalyzer,
   type CodeFinding,
   type EnrichedFinding,
   type UsageRecord,
@@ -36,6 +40,20 @@ function resolveBillingSource(): { label: string; source: CloudBillingSource } |
   return undefined;
 }
 
+async function buildAnalyzer(): Promise<CodeAnalyzer> {
+  const python = new PythonAnalyzer();
+  const semgrepAvailable = await SemgrepAnalyzer.isAvailable();
+  if (!semgrepAvailable) {
+    console.error(
+      "terratrace: semgrep not found on PATH — running with PythonAnalyzer only. " +
+        "Install with `pip install semgrep` to enable the declarative rule pack.",
+    );
+    return python;
+  }
+  console.error("terratrace: semgrep detected — composing SemgrepAnalyzer + PythonAnalyzer.");
+  return new CompositeAnalyzer([new SemgrepAnalyzer(), python], "python");
+}
+
 async function loadUsageRecords(): Promise<UsageRecord[]> {
   const resolved = resolveBillingSource();
   if (resolved) {
@@ -57,12 +75,14 @@ async function main(): Promise<void> {
   const projectName = process.argv[4] ?? projectId;
 
   const files = await fg(pattern);
-  const analyzer = new PythonAnalyzer();
+  const analyzer = await buildAnalyzer();
   const llm = new AnthropicProvider();
 
   const findingsByFile = new Map<string, CodeFinding[]>();
+  const sourceByFile = new Map<string, string>();
   for (const filePath of files) {
     const sourceCode = await readFile(filePath, "utf-8");
+    sourceByFile.set(filePath, sourceCode);
     findingsByFile.set(filePath, await analyzer.analyzeFile(filePath, sourceCode));
   }
 
@@ -71,20 +91,21 @@ async function main(): Promise<void> {
   const estimateByFindingId = correlateFindingsWithUsage(allFindings, usageRecords);
 
   const enrichedFindings: EnrichedFinding[] = [];
+  let recommendationsValidated = 0;
+  let recommendationsRejected = 0;
+  let fixesFromRuleAutofix = 0;
+  let fixesFromLlm = 0;
 
   for (const finding of allFindings) {
     const estimate = estimateByFindingId.get(finding.id);
     const relatedUsage = usageRecords.filter(
       (record) => record.service === RULE_SERVICE_MAP[finding.ruleId],
     );
+    const evidence = { codeFinding: finding, carbonEstimate: estimate, relatedUsage };
 
     let explanation: string | undefined;
     try {
-      explanation = await llm.explainFinding({
-        codeFinding: finding,
-        carbonEstimate: estimate,
-        relatedUsage,
-      });
+      explanation = await llm.explainFinding(evidence);
     } catch (error) {
       console.error(
         `terratrace: explainFinding failed for ${finding.filePath}:${finding.startLine} — leaving explanation empty.`,
@@ -92,7 +113,45 @@ async function main(): Promise<void> {
       );
     }
 
-    enrichedFindings.push({ ...finding, estimate, explanation });
+    let suggestedFixDiff: string | undefined;
+    const sourceCode = sourceByFile.get(finding.filePath);
+    if (sourceCode) {
+      try {
+        const recommendation = await recommendFinding({
+          finding,
+          sourceCode,
+          analyzer,
+          llm,
+          evidence,
+          maxRetries: 2,
+        });
+        if (recommendation.validation.ok) {
+          suggestedFixDiff = recommendation.fixDiff;
+          recommendationsValidated++;
+          if (recommendation.fixSource === "rule-autofix") fixesFromRuleAutofix++;
+          else fixesFromLlm++;
+          console.error(
+            `terratrace: validated fix for ${finding.filePath}:${finding.startLine} ` +
+              `(key=${recommendation.idempotencyKey}, source=${recommendation.fixSource}, attempts=${recommendation.validation.attempts}).`,
+          );
+        } else {
+          recommendationsRejected++;
+          console.error(
+            `terratrace: no validated fix for ${finding.filePath}:${finding.startLine} ` +
+              `(${recommendation.validation.reason} after ${recommendation.validation.attempts} attempt(s)) — ` +
+              `omitting suggestedFixDiff.`,
+          );
+        }
+      } catch (error) {
+        recommendationsRejected++;
+        console.error(
+          `terratrace: recommendFinding threw for ${finding.filePath}:${finding.startLine} — omitting suggestedFixDiff.`,
+          error instanceof Error ? error.message : error,
+        );
+      }
+    }
+
+    enrichedFindings.push({ ...finding, estimate, explanation, suggestedFixDiff });
   }
 
   const output = {
@@ -113,6 +172,12 @@ async function main(): Promise<void> {
   console.error(
     `terratrace: found ${enrichedFindings.length} finding(s) across ${files.length} file(s) ` +
       `for project "${projectId}" (written to scan-output/${projectId}.json).`,
+  );
+  console.error(
+    `terratrace: ${recommendationsValidated} validated fix(es) ` +
+      `(${fixesFromRuleAutofix} deterministic rule-autofix, ${fixesFromLlm} LLM-authored), ` +
+      `${recommendationsRejected} rejected ` +
+      `(rejected = diff didn't apply, didn't clear the finding, or introduced a new one after retries).`,
   );
 
   const totalKgCO2e = enrichedFindings.reduce((sum, f) => sum + (f.estimate?.kgCO2e ?? 0), 0);

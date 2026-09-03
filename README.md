@@ -196,13 +196,20 @@ git commit -m "build: github-action dist"
 ```
 
 Then reference it from any workflow (in this repo or another one that can
-reach it):
+reach it). The Action has **two flows** driven by the triggering event:
+
+**1. PR comment flow** (`pull_request` events) — reads the changed `.py`
+files from the checkout and posts findings + explanations as a PR comment.
+No branches, no fix PRs.
 
 ```yaml
-# .github/workflows/terratrace.yml
-name: TerraTrace
+# .github/workflows/terratrace-pr.yml
+name: TerraTrace (PR comments)
 on:
   pull_request:
+permissions:
+  contents: read
+  pull-requests: write
 jobs:
   scan:
     runs-on: ubuntu-latest
@@ -216,9 +223,40 @@ jobs:
           anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
 ```
 
-The `actions/checkout` step with the PR head ref is required — the Action
-reads changed Python files from the local checkout rather than the GitHub
-Contents API.
+**2. Fix-PR flow** (`push` to default, `schedule`, or `workflow_dispatch`) —
+scans every `.py` file in the repo, asks the LLM for a fix diff per finding,
+validates each diff in-memory (applies it and re-analyzes) with up to 2
+retries, and opens one PR per validated fix against the default branch. Each
+PR is keyed by an idempotency label `terratrace:<hash>` where `hash` covers
+`ruleId + filePath + snippet`, so re-runs never open duplicate PRs for the
+same unresolved finding.
+
+```yaml
+# .github/workflows/terratrace-fix.yml
+name: TerraTrace (fix PRs)
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "0 6 * * 1"   # Monday 06:00 UTC
+  workflow_dispatch:
+permissions:
+  contents: write
+  pull-requests: write
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ajaysinghio/terratrace/packages/github-action@main
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
+```
+
+The `actions/checkout` step is required for both flows — the Action reads
+Python source from the local checkout rather than the GitHub Contents API.
+The fix-PR flow also needs `contents: write` and `pull-requests: write`.
 
 ### CLI — remote / CI usage
 

@@ -20,10 +20,16 @@ importers:
       '@terratrace/core':
         specifier: workspace:*
         version: link:../core
+      diff:
+        specifier: ^5.2.0
+        version: 5.2.2
       fast-glob:
         specifier: ^3.3.3
         version: 3.3.3
     devDependencies:
+      '@types/diff':
+        specifier: ^5.2.3
+        version: 5.2.3
       '@types/node':
         specifier: ^26.2.0
         version: 26.2.0
@@ -45,6 +51,9 @@ importers:
       ai:
         specifier: ^7.0.73
         version: 7.0.73(zod@4.4.3)
+      diff:
+        specifier: ^5.2.0
+        version: 5.2.2
       tree-sitter:
         specifier: ^0.25.1
         version: 0.25.1
@@ -52,6 +61,9 @@ importers:
         specifier: ^0.25.0
         version: 0.25.0(tree-sitter@0.25.1)
     devDependencies:
+      '@types/diff':
+        specifier: ^5.2.3
+        version: 5.2.3
       '@types/node':
         specifier: ^26.2.0
         version: 26.2.0
@@ -104,7 +116,16 @@ importers:
       '@terratrace/core':
         specifier: workspace:*
         version: link:../core
+      diff:
+        specifier: ^5.2.0
+        version: 5.2.2
+      fast-glob:
+        specifier: ^3.3.3
+        version: 3.3.3
     devDependencies:
+      '@types/diff':
+        specifier: ^5.2.3
+        version: 5.2.3
       '@types/node':
         specifier: ^26.2.0
         version: 26.2.0
@@ -637,6 +658,10 @@ packages:
   '@rolldown/pluginutils@1.0.1':
     resolution: {integrity: sha512-2j9bGt5Jh8hj+vPtgzPtl72j0yRxHAyumoo6TNfAjsLB04UtpSvPbPcDcBMxz7n+9CYB0c1GxQFxYRg2jimqGw==}
 
+  '@smithy/core@3.33.2':
+    resolution: {integrity: sha512-CUGXpnPkVdjUCbix+83sWLW9VFgQOm44MDOx/ihITJMAnOZKvL8YYIc7DR9pP/tZ8CIRvMiON/TucvygqbHO3w==}
+    engines: {node: '>=18.0.0'}
+
   '@smithy/core@3.33.3':
     resolution: {integrity: sha512-CsOeKq/9kA3y6VJHt+/+VTCtBaxJ4OTFpgrjIUhPpDIKxBci1k2bJaQASF2h/ELWrulGp+t97DZ0mevfAD8idg==}
     engines: {node: '>=18.0.0'}
@@ -653,8 +678,8 @@ packages:
     resolution: {integrity: sha512-0mq1pHadfyXCYCqm2cNpbjNIT+fbaUpNxewZb/YNr2L0IrEVMOb8gM/Fl4K6XvHCW3uSNDFwPl/+iKm0bx9jYg==}
     engines: {node: '>=18.0.0'}
 
-  '@smithy/signature-v4@5.7.3':
-    resolution: {integrity: sha512-7ImGm+FkHRLcBaRttIAMZ6bzJZWb2cJGoYjq46F2UjycujWzrL9GEN9h4w7eQyXJYnltrUhxbbieBAIRrdqpow==}
+  '@smithy/signature-v4@5.7.2':
+    resolution: {integrity: sha512-P7Ki6px6OOrxVtx8K7nLmyx4SlXUW/uTKDdMG44UHefmPGSRMBKe2v+TM59WdLcpUIrBrnuCsIqiM2MbsZjmhw==}
     engines: {node: '>=18.0.0'}
 
   '@smithy/types@4.17.2':
@@ -702,6 +727,9 @@ packages:
 
   '@types/deep-eql@4.0.2':
     resolution: {integrity: sha512-c9h9dVVMigMPc4bwTvC5dxqtqJZwQPePsWjPlpSOnojbor6pGqdk541lfA7AqFQr5pB1BRdq0juY9db81BwyFw==}
+
+  '@types/diff@5.2.3':
+    resolution: {integrity: sha512-K0Oqlrq3kQMaO2RhfrNQX5trmt+XLyom88zS0u84nnIcLvFnRUMRRHmrGny5GSM+kNO9IZLARsdQHDzkhAgmrQ==}
 
   '@types/estree@1.0.9':
     resolution: {integrity: sha512-GhdPgy1el4/ImP05X05Uw4cw2/M93BCUmnEvWZNStlCzEKME4Fkk+YpoA5OiHNQmoS7Cafb8Xa3Pya8m1Qrzeg==}
@@ -979,6 +1007,10 @@ packages:
   detect-libc@2.1.2:
     resolution: {integrity: sha512-Btj2BOOO83o3WyH59e8MgXsxEQVcarkUOpEYrubB0urwnN10yQ364rsiByU11nZlqWYZm05i/of7io4mzihBtQ==}
     engines: {node: '>=8'}
+
+  diff@5.2.2:
+    resolution: {integrity: sha512-vtcDfH3TOjP8UekytvnHH1o1P4FcUdt4eQ1Y+Abap1tk/OB2MWQvcwS2ClCd1zuIhc3JKOx6p3kod8Vfys3E+A==}
+    engines: {node: '>=0.3.1'}
 
   es-module-lexer@2.3.2:
     resolution: {integrity: sha512-poHGpORABojJJucnV9KbOavETW8lBVnphkW77ER5/BQ5Fz7oXSoCNek7IH3vR5nRjdsEz926ibFYX8KtLQmdyw==}
@@ -1561,7 +1593,7 @@ snapshots:
       '@aws-sdk/xml-builder': 3.972.40
       '@aws/lambda-invoke-store': 0.3.0
       '@smithy/core': 3.33.3
-      '@smithy/signature-v4': 5.7.3
+      '@smithy/signature-v4': 5.7.2
       '@smithy/types': 4.17.2
       bowser: 2.14.1
       tslib: 2.8.1
@@ -1673,7 +1705,7 @@ snapshots:
   '@aws-sdk/signature-v4-multi-region@3.996.46':
     dependencies:
       '@aws-sdk/types': 3.974.5
-      '@smithy/signature-v4': 5.7.3
+      '@smithy/signature-v4': 5.7.2
       '@smithy/types': 4.17.2
       tslib: 2.8.1
 
@@ -1969,6 +2001,11 @@ snapshots:
 
   '@rolldown/pluginutils@1.0.1': {}
 
+  '@smithy/core@3.33.2':
+    dependencies:
+      '@smithy/types': 4.17.2
+      tslib: 2.8.1
+
   '@smithy/core@3.33.3':
     dependencies:
       '@smithy/types': 4.17.2
@@ -1976,13 +2013,13 @@ snapshots:
 
   '@smithy/credential-provider-imds@4.5.2':
     dependencies:
-      '@smithy/core': 3.33.3
+      '@smithy/core': 3.33.2
       '@smithy/types': 4.17.2
       tslib: 2.8.1
 
   '@smithy/fetch-http-handler@5.7.2':
     dependencies:
-      '@smithy/core': 3.33.3
+      '@smithy/core': 3.33.2
       '@smithy/types': 4.17.2
       tslib: 2.8.1
 
@@ -1992,9 +2029,9 @@ snapshots:
       '@smithy/types': 4.17.2
       tslib: 2.8.1
 
-  '@smithy/signature-v4@5.7.3':
+  '@smithy/signature-v4@5.7.2':
     dependencies:
-      '@smithy/core': 3.33.3
+      '@smithy/core': 3.33.2
       '@smithy/types': 4.17.2
       tslib: 2.8.1
 
@@ -2040,6 +2077,8 @@ snapshots:
   '@types/d3-timer@3.0.2': {}
 
   '@types/deep-eql@4.0.2': {}
+
+  '@types/diff@5.2.3': {}
 
   '@types/estree@1.0.9': {}
 
@@ -2238,6 +2277,8 @@ snapshots:
   decimal.js-light@2.5.1: {}
 
   detect-libc@2.1.2: {}
+
+  diff@5.2.2: {}
 
   es-module-lexer@2.3.2: {}
 

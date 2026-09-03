@@ -1,20 +1,16 @@
 import { randomUUID } from "node:crypto";
-import type { DetectionRule } from "../CodeAnalyzer.js";
-import type { CodeFinding } from "../../types.js";
+import type { DetectionRule } from "../../CodeAnalyzer.js";
+import type { CodeFinding } from "../../../types.js";
 
-// NOTE: this is a starting heuristic, not a precise per-ORM detector. It
-// flags any `for` loop whose body text contains a call that *looks* like a
-// per-row database query. Django QuerySet methods (.objects.filter/.get)
-// are the primary target today; SQLAlchemy/Peewee/raw-SQL call shapes will
-// need their own substrings (or a proper AST-aware check) as false
-// positive/negative rates come in from real codebases.
-const SUSPECT_CALL_SUBSTRINGS = [
-  ".objects.filter(",
-  ".objects.get(",
-  ".query(",
-  ".filter(",
-  ".get(",
-];
+/**
+ * Database-adjacent detection rules for Python. Each rule stays a small
+ * `DetectionRule` object; grouping them here (rather than one file per rule)
+ * keeps the rule shelf browsable as it grows. Related rules can share helpers
+ * within this file — the shared tree-sitter walker below is the current
+ * example. New database rules (missing-index, unbatched-insert, select-*)
+ * should land in this file too; only cross a file boundary when a rule needs
+ * a substantially different traversal.
+ */
 
 interface TreeSitterNode {
   type: string;
@@ -35,6 +31,20 @@ function walk(node: TreeSitterNode, visit: (node: TreeSitterNode) => void): void
   }
 }
 
+// NOTE: this is a starting heuristic, not a precise per-ORM detector. It
+// flags any `for` loop whose body text contains a call that *looks* like a
+// per-row database query. Django QuerySet methods (.objects.filter/.get)
+// are the primary target today; SQLAlchemy/Peewee/raw-SQL call shapes will
+// need their own substrings (or a proper AST-aware check) as false
+// positive/negative rates come in from real codebases.
+const N_PLUS_ONE_SUSPECT_CALLS = [
+  ".objects.filter(",
+  ".objects.get(",
+  ".query(",
+  ".filter(",
+  ".get(",
+];
+
 export const nPlusOneQuery: DetectionRule = {
   id: "n-plus-one-query",
   description:
@@ -46,7 +56,7 @@ export const nPlusOneQuery: DetectionRule = {
 
     walk(rootNode, (node) => {
       if (node.type !== "for_statement") return;
-      const hasSuspectCall = SUSPECT_CALL_SUBSTRINGS.some((substring) =>
+      const hasSuspectCall = N_PLUS_ONE_SUSPECT_CALLS.some((substring) =>
         node.text.includes(substring),
       );
       if (!hasSuspectCall) return;
@@ -70,3 +80,6 @@ export const nPlusOneQuery: DetectionRule = {
     return findings;
   },
 };
+
+/** All database-related Python rules. Extend this array as rules are added. */
+export const pythonDatabaseRules: DetectionRule[] = [nPlusOneQuery];

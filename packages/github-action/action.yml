@@ -1,11 +1,11 @@
 name: "TerraTrace"
-description: "Scans changed Python files for carbon/cost-impacting code patterns and explains them on the PR."
+description: "On pull_request events, comments carbon/cost findings on the PR. On push/schedule/workflow_dispatch, scans the whole repo and opens validated fix PRs against the default branch (idempotent per finding)."
 inputs:
   github-token:
-    description: "Token used to read PR files and post comments (usually secrets.GITHUB_TOKEN)."
+    description: "Token used for PR reads/writes and (in the fix-PR flow) branch creation and content updates. Needs contents:write and pull-requests:write permissions on the caller workflow."
     required: true
   anthropic-api-key:
-    description: "Anthropic API key used to generate explanations."
+    description: "Anthropic API key used to generate explanations and fix diffs."
     required: true
 runs:
   using: "node20"
