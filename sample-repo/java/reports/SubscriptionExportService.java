@@ -1,8 +1,8 @@
 package reports;
 
-import java.util.List;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import java.util.List;
 
 /**
  * Planted unbounded-query: fetches every subscription row into memory in
