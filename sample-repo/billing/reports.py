@@ -23,12 +23,9 @@ def overdue_subscription_ids():
     Planted N+1: a second, independent occurrence in the same file so the
     per-file impact score reflects multiple hits, not just one.
     """
-    subscriptions = Subscription.objects.all()
-    overdue_ids = []
-
-    for subscription in subscriptions:
-        overdue = Invoice.objects.get(subscription_id=subscription.id, status="overdue")
-        if overdue:
-            overdue_ids.append(subscription.id)
-
+    overdue_ids = list(
+        Invoice.objects.filter(status="overdue")
+        .values_list("subscription_id", flat=True)
+        .distinct()
+    )
     return overdue_ids
