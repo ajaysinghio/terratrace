@@ -1,4 +1,5 @@
 from .models import Invoice, Subscription
+
 from django.db.models import Sum
 
 
@@ -8,11 +9,12 @@ def monthly_revenue_by_subscription():
     Planted N+1: fetches invoices one subscription at a time instead of a
     single batched query.
     """
-    totals = (
-        Invoice.objects.values("subscription_id")
-        .annotate(total_revenue=Sum("total"))
-    )
+    subscriptions = Subscription.objects.all()
+    revenue = {}
+
+    totals = Invoice.objects.values("subscription_id").annotate(total_revenue=Sum("total"))
     revenue = {row["subscription_id"]: row["total_revenue"] for row in totals}
+
     return revenue
 
 
