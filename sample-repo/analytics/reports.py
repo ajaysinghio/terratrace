@@ -1,17 +1,15 @@
 from .models import Event, Session
+from django.db.models import Count
 
 
 def sessions_with_event_counts(request):
     """Attach an event count to every session.
 
-    Planted N+1: queries Event once per Session instead of annotating with
-    a single aggregate query.
+    Uses a single annotated query instead of querying Event once per Session.
     """
-    sessions = Session.objects.filter(active=True)
-    counts = {}
-
-    for session in sessions:
-        events = Event.objects.filter(session_id=session.id)
-        counts[session.id] = len(events)
+    sessions = Session.objects.filter(active=True).annotate(
+        event_count=Count('event')
+    )
+    counts = {session.id: session.event_count for session in sessions}
 
     return counts
