@@ -1,6 +1,7 @@
 from django.http import JsonResponse
 
-from .models import Customer, Order
+from django.db.models import Sum
+from .models import Customer
 
 
 def customer_order_totals(request):
@@ -9,12 +10,12 @@ def customer_order_totals(request):
     Planted N+1: this issues one Order query per customer instead of a
     single batched query (e.g. via prefetch_related). TerraTrace should
     flag the `for` loop below.
-    """
-    customers = Customer.objects.all()
-    totals = {}
-
-    for customer in customers:
-        orders = Order.objects.filter(customer_id=customer.id)
+    totals = {
+        row["customer_id"]: row["total"]
+        for row in Customer.objects.values("id").annotate(
+            total=Sum("order__amount")
+        ).values("customer_id", "total")
+    }
         totals[customer.id] = sum(order.amount for order in orders)
 
     return JsonResponse(totals)
