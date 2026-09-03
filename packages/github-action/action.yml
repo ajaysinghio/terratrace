@@ -5,8 +5,11 @@ inputs:
     description: "Token used for PR reads/writes and (in the fix-PR flow) branch creation and content updates. Needs contents:write and pull-requests:write permissions on the caller workflow."
     required: true
   anthropic-api-key:
-    description: "Anthropic API key used to generate explanations and fix diffs."
-    required: true
+    description: "Anthropic API key used to generate explanations and fix diffs. Supply this OR openrouter-api-key — at least one is required."
+    required: false
+  openrouter-api-key:
+    description: "OpenRouter API key (routes Claude calls through OpenRouter's OpenAI-compatible endpoint). Supply this OR anthropic-api-key — at least one is required."
+    required: false
 runs:
-  using: "node20"
+  using: "node24"
   main: "dist/index.js"

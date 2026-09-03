@@ -30,4 +30,6 @@ jobs:
         uses: ./packages/github-action
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
+          # Set exactly one of these. The Action fails if neither is set.
+          # anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
+          openrouter-api-key: ${{ secrets.OPENROUTER_API_KEY }}

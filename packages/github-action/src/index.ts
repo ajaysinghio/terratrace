@@ -35,12 +35,33 @@ const BUNDLED_SEMGREP_RULES = path.join(HERE, "rules-semgrep");
 
 async function run(): Promise<void> {
   const githubToken = core.getInput("github-token", { required: true });
-  const anthropicApiKey = core.getInput("anthropic-api-key", { required: true });
+  const anthropicApiKey = core.getInput("anthropic-api-key");
+  const openrouterApiKey = core.getInput("openrouter-api-key");
+
+  if (!anthropicApiKey && !openrouterApiKey) {
+    throw new Error(
+      "terratrace: must supply either `anthropic-api-key` or `openrouter-api-key` as an input " +
+        "(via secrets.ANTHROPIC_API_KEY or secrets.OPENROUTER_API_KEY in your workflow).",
+    );
+  }
+
+  // Wire the chosen key into process.env so AnthropicProvider auto-detects
+  // the right vendor (its constructor branches on which env var is set).
+  // Setting only one of the two ensures the provider picks that path.
+  if (anthropicApiKey) {
+    process.env.ANTHROPIC_API_KEY = anthropicApiKey;
+    delete process.env.OPENROUTER_API_KEY;
+    core.info("terratrace: using Anthropic (anthropic-api-key supplied).");
+  } else {
+    process.env.OPENROUTER_API_KEY = openrouterApiKey;
+    delete process.env.ANTHROPIC_API_KEY;
+    core.info("terratrace: using OpenRouter (openrouter-api-key supplied).");
+  }
 
   const context = github.context;
   const octokit = github.getOctokit(githubToken);
   const analyzer = await buildAnalyzer();
-  const llm = new AnthropicProvider(undefined, anthropicApiKey);
+  const llm = new AnthropicProvider();
 
   if (context.eventName === "pull_request") {
     await runPullRequestFlow(octokit, analyzer, llm);
