@@ -16,8 +16,8 @@ public class OrderService {
 
     public long totalOrderValue(List<Long> customerIds) {
         long total = 0;
-        for (Long customerId : customerIds) {
-            Order order = orderRepository.findById(customerId);
+        List<Order> orders = orderRepository.findAllById(customerIds);
+        for (Order order : orders) {
             total += order.getAmount();
         }
         return total;
