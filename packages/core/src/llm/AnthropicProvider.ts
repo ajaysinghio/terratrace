@@ -16,10 +16,14 @@ estimate, or round figures that are not already there. If the evidence bundle la
 say so explicitly rather than guessing at magnitude.`;
 
 const FIX_SYSTEM_PROMPT = `You are a senior software engineer. You will be given a JSON evidence bundle
-containing a code finding (including its file path, line range, and snippet) and surrounding context. Output
-ONLY a minimal unified diff that fixes the specific inefficiency described in the finding. Match the
-codebase's existing style, language idioms, and framework (e.g. Django ORM conventions if the snippet uses
-Django). Do not include any commentary, explanation, or markdown code fences — output the raw diff only.`;
+containing a code finding (file path, line range, snippet) and, in codeFileSource, the FULL VERBATIM
+CONTENTS of that file. Base your diff strictly on codeFileSource — every context line in your patch must
+appear byte-for-byte in codeFileSource, and every @@ header must reference real line numbers in
+codeFileSource. Do not invent variables, imports, or code that isn't in codeFileSource. Output ONLY a
+minimal unified diff that fixes the specific inefficiency described in the finding. Match the codebase's
+existing style, language idioms, and framework (e.g. Django ORM conventions if the source uses Django).
+Do not include any commentary, explanation, or markdown code fences — output the raw diff only, starting
+with the --- a/path line.`;
 
 const ANSWER_SYSTEM_PROMPT = `You are a sustainability and cost engineer answering questions about a
 codebase scan. You will be given a question and a JSON array of evidence bundles (findings + billing +

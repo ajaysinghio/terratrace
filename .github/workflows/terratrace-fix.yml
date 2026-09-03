@@ -11,6 +11,9 @@ on:
 permissions:
   contents: write
   pull-requests: write
+  # Needed for the advisory-Issue fallback flow — Action opens Issues when
+  # the LLM can't produce a validated fix diff.
+  issues: write
 
 jobs:
   scan:

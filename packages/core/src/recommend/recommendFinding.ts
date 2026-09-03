@@ -151,7 +151,16 @@ async function attemptFix(
  * validation result — check `validation.ok` before acting on it.
  */
 export async function recommendFinding(args: RecommendFindingArgs): Promise<Recommendation> {
-  const { finding, sourceCode, analyzer, evidence, maxRetries = 2 } = args;
+  const { finding, sourceCode, analyzer, maxRetries = 2 } = args;
+  // Ground the LLM in the actual file bytes. Without this the model only
+  // sees the finding's snippet (a few lines) and hallucinates surrounding
+  // code that doesn't exist — its diffs then fail applyPatch because the
+  // context lines don't match. Callers can still override by pre-populating
+  // codeFileSource in their evidence.
+  const evidence: EvidenceBundle = {
+    ...args.evidence,
+    codeFileSource: args.evidence.codeFileSource ?? sourceCode,
+  };
 
   const baseline = await analyzer.analyzeFile(finding.filePath, sourceCode);
   const baselineKeys = new Set(baseline.map(findingStructuralKey));

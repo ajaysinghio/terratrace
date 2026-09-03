@@ -65,6 +65,13 @@ export interface CodeFinding {
  */
 export interface EvidenceBundle {
   codeFinding?: CodeFinding;
+  /**
+   * Full source of the file the finding belongs to, verbatim. Passed to the
+   * LLM alongside the finding so it authors diffs against real bytes rather
+   * than hallucinating context lines. `recommendFinding` injects this from
+   * its `sourceCode` arg automatically if the caller hasn't populated it.
+   */
+  codeFileSource?: string;
   relatedUsage?: UsageRecord[];
   carbonEstimate?: CarbonEstimate;
   infraConfigSnippet?: string;
