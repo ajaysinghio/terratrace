@@ -1,5 +1,5 @@
-from .models import Event, Session
 from django.db.models import Count
+from .models import Session
 
 
 def sessions_with_event_counts(request):
@@ -11,5 +11,4 @@ def sessions_with_event_counts(request):
         event_count=Count('event')
     )
     counts = {session.id: session.event_count for session in sessions}
-
     return counts
