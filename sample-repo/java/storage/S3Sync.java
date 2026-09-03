@@ -1,13 +1,16 @@
 package storage;
 
+import java.nio.file.Paths;
 import java.util.List;
 import software.amazon.awssdk.services.s3.S3Client;
-import software.amazon.awssdk.services.s3.model.GetObjectRequest;
+import software.amazon.awssdk.transfer.s3.S3TransferManager;
+import software.amazon.awssdk.transfer.s3.model.DownloadFileRequest;
+import software.amazon.awssdk.transfer.s3.model.FileDownload;
+import java.util.ArrayList;
 
 /**
- * Planted chatty-s3-loop: issues a separate S3 getObject call per key
- * instead of paginating/batching. TerraTrace should flag the `for` loop
- * below.
+ * Uses S3TransferManager to issue all downloads concurrently in bulk
+ * instead of one blocking getObject call per key.
  */
 public class S3Sync {
     private final S3Client s3Client;
@@ -20,8 +23,20 @@ public class S3Sync {
 
     public void syncPendingUploads(List<String> keys) {
         for (String key : keys) {
-            var request = GetObjectRequest.builder().bucket(bucket).key(key).build();
-            s3Client.getObject(request);
-        }
+        try (S3TransferManager transferManager = S3TransferManager.builder()
+                .s3Client(software.amazon.awssdk.transfer.s3.internal.DefaultS3CrtAsyncClient
+                        .builder().build())
+                .build()) {
+            List<FileDownload> downloads = new ArrayList<>(keys.size());
+            for (String key : keys) {
+                DownloadFileRequest downloadRequest = DownloadFileRequest.builder()
+                        .getObjectRequest(r -> r.bucket(bucket).key(key))
+                        .destination(Paths.get(key.replaceAll(".*/", "")))
+                        .build();
+                downloads.add(transferManager.downloadFile(downloadRequest));
+            }
+            for (FileDownload download : downloads) {
+                download.completionFuture().join();
+            }
     }
 }
