@@ -25,6 +25,7 @@ const FIX_PR_EVENTS = new Set(["push", "schedule", "workflow_dispatch"]);
 const SCAN_GLOB = "**/*.py";
 const SCAN_IGNORE = ["**/node_modules/**", "**/.venv/**", "**/venv/**", "**/dist/**", "**/lib/**"];
 const WONTFIX_LABEL = "terratrace:wontfix";
+const ADVISORY_LABEL = "terratrace:advisory";
 
 // Post-bundling (ncc), this file lives at dist/index.js and the action's
 // build step copies the Semgrep rule pack into dist/rules-semgrep/. Resolve
@@ -176,10 +177,13 @@ async function runFixPrFlow(
   const files = await fg(SCAN_GLOB, { ignore: SCAN_IGNORE, dot: false });
   core.info(`terratrace: fix-pr flow scanning ${files.length} .py file(s).`);
 
-  let opened = 0;
-  let skippedExisting = 0;
-  let skippedWontfix = 0;
-  let skippedInvalid = 0;
+  let prOpened = 0;
+  let prSkippedExisting = 0;
+  let prSkippedWontfix = 0;
+  let advisoryOpened = 0;
+  let advisorySkippedExisting = 0;
+  let advisorySkippedWontfix = 0;
+  let threw = 0;
 
   for (const filePath of files) {
     const sourceCode = await readFile(filePath, "utf-8");
@@ -200,39 +204,61 @@ async function runFixPrFlow(
         core.warning(
           `terratrace: recommendFinding threw for ${finding.filePath}:${finding.startLine}: ${errText(err)}`,
         );
-        skippedInvalid++;
+        threw++;
         continue;
       }
 
-      if (!recommendation.validation.ok) {
-        core.info(
-          `terratrace: skipping ${finding.filePath}:${finding.startLine} — validation failed (${recommendation.validation.reason}) after ${recommendation.validation.attempts} attempt(s).`,
-        );
-        skippedInvalid++;
+      if (recommendation.validation.ok) {
+        const outcome = await maybeOpenFixPr({
+          octokit,
+          owner,
+          repo,
+          defaultBranch,
+          baseSha,
+          sourceCode,
+          recommendation,
+          llm,
+        });
+        if (outcome === "opened") prOpened++;
+        else if (outcome === "existing") prSkippedExisting++;
+        else if (outcome === "wontfix") prSkippedWontfix++;
+        else threw++;
         continue;
       }
 
-      const outcome = await maybeOpenFixPr({
+      // Path B: validation failed — the LLM couldn't author a diff we can
+      // apply cleanly. Rather than swallowing the finding into the CI log
+      // where nobody sees it, open an advisory Issue with the finding, the
+      // explanation, and the best-effort (unvalidated) diff so the user has
+      // a durable artifact on the repo. Log the diff head so CI users can
+      // eyeball why apply failed.
+      core.info(
+        `terratrace: ${finding.filePath}:${finding.startLine} — validation failed ` +
+          `(${recommendation.validation.reason}) after ${recommendation.validation.attempts} attempt(s). ` +
+          `Filing advisory Issue.`,
+      );
+      const diffHead = recommendation.fixDiff.slice(0, 400).replace(/\n/g, "\n  | ");
+      core.info(`terratrace: last-attempt diff head:\n  | ${diffHead}`);
+
+      const outcome = await maybeOpenAdvisoryIssue({
         octokit,
         owner,
         repo,
-        defaultBranch,
-        baseSha,
-        sourceCode,
         recommendation,
         llm,
       });
-
-      if (outcome === "opened") opened++;
-      else if (outcome === "existing") skippedExisting++;
-      else if (outcome === "wontfix") skippedWontfix++;
-      else skippedInvalid++;
+      if (outcome === "opened") advisoryOpened++;
+      else if (outcome === "existing") advisorySkippedExisting++;
+      else if (outcome === "wontfix") advisorySkippedWontfix++;
+      else threw++;
     }
   }
 
   core.info(
-    `terratrace: fix-pr flow done — opened ${opened}, skipped-existing ${skippedExisting}, ` +
-      `skipped-wontfix ${skippedWontfix}, skipped-invalid ${skippedInvalid}.`,
+    `terratrace: fix-pr flow done. ` +
+      `PRs: opened ${prOpened}, existing ${prSkippedExisting}, wontfix ${prSkippedWontfix}. ` +
+      `Advisories: opened ${advisoryOpened}, existing ${advisorySkippedExisting}, wontfix ${advisorySkippedWontfix}. ` +
+      `Threw: ${threw}.`,
   );
 }
 
@@ -318,6 +344,132 @@ async function maybeOpenFixPr(
 
   core.info(`terratrace: opened fix PR #${pr.number} for ${recommendation.finding.filePath}.`);
   return "opened";
+}
+
+interface OpenAdvisoryIssueArgs {
+  octokit: Octokit;
+  owner: string;
+  repo: string;
+  recommendation: Recommendation;
+  llm: AnthropicProvider;
+}
+
+/**
+ * Advisory Issue for a finding where the LLM couldn't author a validated
+ * fix diff. Same hash-label idempotency as PRs, same wontfix opt-out. The
+ * body includes the finding, an explanation, and the best-effort
+ * (unvalidated) diff — clearly marked as unverified so nobody merges it
+ * blindly.
+ */
+async function maybeOpenAdvisoryIssue(
+  args: OpenAdvisoryIssueArgs,
+): Promise<"opened" | "existing" | "wontfix" | "failed"> {
+  const { octokit, owner, repo, recommendation, llm } = args;
+  const key = recommendation.idempotencyKey;
+  const label = `terratrace:${key}`;
+
+  const skip = await findAdvisorySkipReason(octokit, owner, repo, label);
+  if (skip?.reason === "open") {
+    core.info(
+      `terratrace: existing advisory Issue #${skip.number} already tracks ${recommendation.finding.filePath}:${recommendation.finding.startLine} (label ${label}); leaving it alone.`,
+    );
+    return "existing";
+  }
+  if (skip?.reason === "wontfix") {
+    core.info(
+      `terratrace: closed advisory Issue #${skip.number} for ${recommendation.finding.filePath}:${recommendation.finding.startLine} is labelled '${WONTFIX_LABEL}' — user rejected; not re-opening.`,
+    );
+    return "wontfix";
+  }
+
+  await ensureLabel(octokit, owner, repo, label);
+  await ensureLabel(octokit, owner, repo, WONTFIX_LABEL);
+  await ensureLabel(octokit, owner, repo, ADVISORY_LABEL);
+
+  let explanation = recommendation.explanation;
+  if (!explanation) {
+    try {
+      explanation = await llm.explainFinding({ codeFinding: recommendation.finding });
+    } catch (err) {
+      core.warning(`terratrace: explainFinding failed for advisory body: ${errText(err)}`);
+    }
+  }
+
+  const body = buildAdvisoryIssueBody(recommendation, explanation);
+  const { data: issue } = await octokit.rest.issues.create({
+    owner,
+    repo,
+    title: `terratrace advisory: ${recommendation.finding.ruleId} in ${recommendation.finding.filePath}`,
+    body,
+    labels: [label, ADVISORY_LABEL],
+  });
+
+  core.info(
+    `terratrace: opened advisory Issue #${issue.number} for ${recommendation.finding.filePath}.`,
+  );
+  return "opened";
+}
+
+async function findAdvisorySkipReason(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  label: string,
+): Promise<{ number: number; reason: "open" | "wontfix" } | undefined> {
+  const open = await octokit.rest.issues.listForRepo({
+    owner,
+    repo,
+    state: "open",
+    labels: label,
+    per_page: 5,
+  });
+  // Advisories are Issues, not PRs — filter out pull_request-shaped rows.
+  const openIssue = open.data.find((issue) => issue.pull_request === undefined);
+  if (openIssue) return { number: openIssue.number, reason: "open" };
+
+  const closedWontfix = await octokit.rest.issues.listForRepo({
+    owner,
+    repo,
+    state: "closed",
+    labels: `${label},${WONTFIX_LABEL}`,
+    per_page: 5,
+  });
+  const closedIssue = closedWontfix.data.find((issue) => issue.pull_request === undefined);
+  if (closedIssue) return { number: closedIssue.number, reason: "wontfix" };
+
+  return undefined;
+}
+
+function buildAdvisoryIssueBody(recommendation: Recommendation, explanation?: string): string {
+  const { finding, validation, idempotencyKey, fixDiff } = recommendation;
+  const lines = [
+    `### TerraTrace advisory: \`${finding.ruleId}\` at \`${finding.filePath}:${finding.startLine}\``,
+    "",
+    explanation ?? "_(no explanation available)_",
+    "",
+    `**No auto-fix PR opened.** After ${validation.attempts} attempt(s), the LLM couldn't produce a diff that both applied cleanly and cleared the finding (last failure: \`${validation.reason ?? "unknown"}\`). The best-effort diff below is included for reference but **has not been verified** — do not merge blindly.`,
+    "",
+    "<details><summary>Original finding</summary>",
+    "",
+    "```",
+    finding.snippet,
+    "```",
+    "",
+    "</details>",
+    "",
+    "<details><summary>Last-attempt (unvalidated) diff</summary>",
+    "",
+    "```diff",
+    fixDiff || "(empty)",
+    "```",
+    "",
+    "</details>",
+    "",
+    `_Don't want to be reminded about this finding? Close this Issue and add the \`${WONTFIX_LABEL}\` label — TerraTrace won't re-file on subsequent scans._`,
+    "",
+    `<!-- terratrace-id: ${idempotencyKey} -->`,
+  ];
+  return lines.join("\n");
 }
 
 /**

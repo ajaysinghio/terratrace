@@ -48,6 +48,19 @@ interface AttemptOutcome {
   validation: Omit<ValidationResult, "attempts">;
 }
 
+/**
+ * Most LLMs ignore "do not include markdown code fences" ~30% of the time
+ * and wrap unified diffs in ```diff … ``` or plain ``` … ```. jsdiff's
+ * applyPatch then chokes on the fence lines even though the hunks
+ * themselves are valid. Strip a single outer fence if present so the LLM's
+ * disobedience doesn't cost us the whole retry budget.
+ */
+function stripMarkdownFences(raw: string): string {
+  const trimmed = raw.trim();
+  const fenceMatch = trimmed.match(/^```(?:diff|patch)?\s*\n([\s\S]*?)\n```\s*$/);
+  return fenceMatch ? fenceMatch[1] : raw;
+}
+
 async function attemptFix(
   args: RecommendFindingArgs,
   baselineKeys: Set<string>,
@@ -55,7 +68,8 @@ async function attemptFix(
   evidence: EvidenceBundle,
 ): Promise<AttemptOutcome> {
   const { finding, sourceCode, analyzer, llm } = args;
-  const diff = await llm.generateFix(evidence);
+  const raw = await llm.generateFix(evidence);
+  const diff = stripMarkdownFences(raw);
 
   // jsdiff's applyPatch is lenient: input without any @@ hunk markers is
   // returned unchanged instead of rejected, which would silently look like
