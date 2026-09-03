@@ -18,6 +18,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Build the Action's bundle fresh from src on every run. Adds ~1–2 min
+      # but eliminates the "committed dist is stale" trap — CI always runs
+      # exactly what's in src/. If PoC iteration slows down, swap to the
+      # committed-dist pattern (drop these three steps, keep only the
+      # `uses: ./packages/github-action` step, and rebuild+commit dist
+      # before pushing).
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - uses: pnpm/action-setup@v4
+        with:
+          version: "11.22.0"
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+
       # Semgrep is a Python package; install it before the Action step so
       # SemgrepAnalyzer's subprocess call resolves. Detection depends on
       # this — the Action fails loud if semgrep is missing.
