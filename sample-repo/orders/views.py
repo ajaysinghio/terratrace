@@ -13,9 +13,10 @@ def customer_order_totals(request):
     """
     customers = Customer.objects.all()
     order_totals = (
-        Order.objects.values("customer_id")
-        .annotate(total=Sum("amount"))
+        Order.objects
+        .values('customer_id')
+        .annotate(total=Sum('amount'))
     )
-    totals = {row["customer_id"]: row["total"] for row in order_totals}
+    totals = {row['customer_id']: row['total'] for row in order_totals}
 
     return JsonResponse(totals)
