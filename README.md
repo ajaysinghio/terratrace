@@ -70,6 +70,41 @@ See [CONTRIBUTING.md](./CONTRIBUTING.md) for the full source tree, the
 architecture behind the three core interfaces, and how to extend each of
 them.
 
+## Detection coverage
+
+Detection rules are declarative Semgrep YAML under
+`packages/core/rules-semgrep/<language>/`, not hand-written per-language code
+— adding a rule to an existing language, or a language to an existing rule,
+is a new `.yaml` file plus a `RULE_SERVICE_MAP` entry in
+`packages/core/src/carbon/correlate.ts`. See "Adding a new language analyzer"
+/ "Adding a detection rule" in [CONTRIBUTING.md](./CONTRIBUTING.md).
+
+| Rule | Python | Java | Billed service |
+|---|---|---|---|
+| `n-plus-one-query` — DB call issued once per loop iteration instead of batched | ✅ | ✅ | AmazonRDS |
+| `unbounded-query` — fetches a whole table into memory instead of paginating/streaming | ✅ | ✅ | AmazonRDS |
+| `chatty-s3-loop` — S3 API call issued once per loop iteration instead of batched | ✅ | ✅ | AmazonS3 |
+
+**Planned, not yet implemented** (prototyped as ideas, deliberately deferred
+because a precise Semgrep pattern needs dataflow reasoning a plain AST match
+can't do reliably — shipping them now would mean a high false-positive rate,
+which conflicts with this project's stated preference for being honest about
+a heuristic's limits over chasing rule-count coverage):
+
+- **Synchronous polling/busy-wait loops** (`while True: sleep(...)`-style) —
+  burns compute continuously instead of waiting on an event; hard to
+  distinguish from a legitimate backoff-retry loop without tracking whether
+  the sleep duration actually backs off.
+- **Chatty outbound HTTP calls in a loop** instead of a batch/bulk endpoint —
+  valuable but the billed service depends on which API is being called, so
+  it doesn't map cleanly onto one `RULE_SERVICE_MAP` entry the way S3/RDS
+  calls do.
+- **Missing connection/resource reuse** (constructing a new DB/HTTP client
+  per request instead of a pooled/shared one) — amplifies per-invocation
+  connection overhead; needs cross-function reasoning (is this client
+  actually re-created on every call, or once at module/class scope?) beyond
+  what a single-function AST pattern can see.
+
 ## Prerequisites
 
 - **Node.js ≥ 20.6** (the `--env-file=.env` flag used below needs 20.6+; tested on Node 26). On macOS: `brew install node`.

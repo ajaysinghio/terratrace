@@ -1,0 +1,17 @@
+rules:
+  - id: unbounded-query
+    languages: [java]
+    severity: WARNING
+    message: >-
+      $REPO.findAll() with no Pageable fetches every row in the table into memory in one call
+      instead of paginating or streaming it. For large tables this multiplies both the RDS read
+      cost and the carbon footprint of a single request; use a paginated
+      `findAll(Pageable)`/`Page<T>` query or a bounded derived query instead.
+    metadata:
+      category: performance
+      terratrace-lens: database
+      terratrace-severity: medium
+    # NOTE: like the Python unbounded-query rule, this is a starting heuristic tuned to
+    # Spring Data's zero-arg findAll() idiom, not a precise per-ORM detector — a small lookup
+    # table calling findAll() is a legitimate false positive; tune per false-positive rate.
+    pattern: $REPO.findAll()

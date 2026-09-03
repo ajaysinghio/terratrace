@@ -3,6 +3,7 @@ import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { PythonAnalyzer } from "../../analyzer/PythonAnalyzer.js";
+import { nPlusOneQuery } from "../../analyzer/rules/python/database.js";
 import { parseCurCsv } from "../../billing/AWSCurSource.js";
 import { correlateFindingsWithUsage, RULE_SERVICE_MAP } from "../correlate.js";
 
@@ -13,7 +14,10 @@ describe("correlateFindingsWithUsage against a real-CUR-shaped fixture", () => {
   it("attaches a non-zero, medium-confidence RDS estimate to an N+1-query finding", async () => {
     const filePath = resolve(repoRoot, "sample-repo/orders/views.py");
     const source = await readFile(filePath, "utf8");
-    const findings = await new PythonAnalyzer().analyzeFile(filePath, source);
+    // The default PythonAnalyzer ships no rules today (Semgrep owns
+    // detection in production); pass the legacy tree-sitter rule explicitly
+    // so this test stays self-contained without needing semgrep on PATH.
+    const findings = await new PythonAnalyzer([nPlusOneQuery]).analyzeFile(filePath, source);
     expect(findings.length).toBeGreaterThan(0);
     expect(RULE_SERVICE_MAP[findings[0].ruleId]).toBe("AmazonRDS");
 

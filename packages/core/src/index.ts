@@ -6,8 +6,11 @@ export * from "./billing/AWSCurS3Source.js";
 
 export * from "./analyzer/CodeAnalyzer.js";
 export * from "./analyzer/PythonAnalyzer.js";
+export * from "./analyzer/JavaAnalyzer.js";
 export * from "./analyzer/SemgrepAnalyzer.js";
 export * from "./analyzer/CompositeAnalyzer.js";
+export * from "./analyzer/MultiLanguageAnalyzer.js";
+export * from "./analyzer/languages.js";
 export * from "./analyzer/rules/registry.js";
 
 export * from "./llm/LLMProvider.js";

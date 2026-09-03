@@ -4,8 +4,11 @@ import path from "node:path";
 import fg from "fast-glob";
 import {
   PythonAnalyzer,
+  JavaAnalyzer,
   SemgrepAnalyzer,
   CompositeAnalyzer,
+  MultiLanguageAnalyzer,
+  SUPPORTED_LANGUAGES,
   AnthropicProvider,
   AWSCurSource,
   AWSCurS3Source,
@@ -22,7 +25,7 @@ import {
 } from "@terratrace/core";
 import { sampleUsageRecords } from "./sampleUsage.js";
 
-const DEFAULT_PATTERN = "./sample-repo/**/*.py";
+const DEFAULT_PATTERN = SUPPORTED_LANGUAGES.map((language) => `./sample-repo/${language.glob}`);
 
 function resolveBillingSource(): { label: string; source: CloudBillingSource } | undefined {
   const curFilePath = process.env.TERRATRACE_CUR_FILE;
@@ -71,17 +74,28 @@ function normalizeRepoUrl(input: string): string | undefined {
 }
 
 async function buildAnalyzer(): Promise<CodeAnalyzer> {
-  const python = new PythonAnalyzer();
   const semgrepAvailable = await SemgrepAnalyzer.isAvailable();
+
   if (!semgrepAvailable) {
     console.error(
-      "terratrace: semgrep not found on PATH — running with PythonAnalyzer only. " +
-        "Install with `pip install semgrep` to enable the declarative rule pack.",
+      "terratrace: semgrep not found on PATH — running with PythonAnalyzer only " +
+        "(Java has no detection without Semgrep). Install with `pip install semgrep` " +
+        "to enable the declarative rule packs for both languages.",
     );
-    return python;
+    return new PythonAnalyzer();
   }
-  console.error("terratrace: semgrep detected — composing SemgrepAnalyzer + PythonAnalyzer.");
-  return new CompositeAnalyzer([new SemgrepAnalyzer(), python], "python");
+
+  console.error(
+    "terratrace: semgrep detected — composing SemgrepAnalyzer + PythonAnalyzer for Python, " +
+      "JavaAnalyzer for Java.",
+  );
+  return new MultiLanguageAnalyzer([
+    {
+      extensions: [".py"],
+      analyzer: new CompositeAnalyzer([new SemgrepAnalyzer(), new PythonAnalyzer()], "python"),
+    },
+    { extensions: [".java"], analyzer: new JavaAnalyzer() },
+  ]);
 }
 
 async function loadUsageRecords(): Promise<UsageRecord[]> {

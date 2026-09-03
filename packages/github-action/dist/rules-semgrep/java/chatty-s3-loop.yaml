@@ -1,0 +1,45 @@
+rules:
+  - id: chatty-s3-loop
+    languages: [java]
+    severity: WARNING
+    message: >-
+      This loop issues a separate S3 API call on every iteration instead of batching. Each
+      call is its own billed request plus network round-trip; prefer a batch/bulk API
+      (e.g. paginating a listing once outside the loop, or the SDK's transfer manager for
+      bulk get/put) over calling S3 once per item.
+    metadata:
+      category: performance
+      terratrace-lens: storage
+      terratrace-severity: medium
+    patterns:
+      - pattern-either:
+          - pattern: |
+              for ($TYPE $VAR : $COLL) {
+                ...
+                $S3.getObject(...);
+                ...
+              }
+          - pattern: |
+              for ($TYPE $VAR : $COLL) {
+                ...
+                $S3.putObject(...);
+                ...
+              }
+          - pattern: |
+              for ($TYPE $VAR : $COLL) {
+                ...
+                $S3.listObjects(...);
+                ...
+              }
+          - pattern: |
+              for ($TYPE $VAR : $COLL) {
+                ...
+                $S3.listObjectsV2(...);
+                ...
+              }
+          - pattern: |
+              for ($TYPE $VAR : $COLL) {
+                ...
+                $S3.headObject(...);
+                ...
+              }

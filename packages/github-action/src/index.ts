@@ -7,6 +7,8 @@ import { applyPatch } from "diff";
 import fg from "fast-glob";
 import {
   SemgrepAnalyzer,
+  MultiLanguageAnalyzer,
+  SUPPORTED_LANGUAGES,
   AnthropicProvider,
   recommendFinding,
   type CodeAnalyzer,
@@ -22,8 +24,17 @@ interface FindingWithExplanation {
 type Octokit = ReturnType<typeof github.getOctokit>;
 
 const FIX_PR_EVENTS = new Set(["push", "schedule", "workflow_dispatch"]);
-const SCAN_GLOB = "**/*.py";
-const SCAN_IGNORE = ["**/node_modules/**", "**/.venv/**", "**/venv/**", "**/dist/**", "**/lib/**"];
+const SCAN_GLOBS = SUPPORTED_LANGUAGES.map((language) => language.glob);
+const SCAN_EXTENSIONS = new Set(SUPPORTED_LANGUAGES.flatMap((language) => language.extensions));
+const SCAN_IGNORE = [
+  "**/node_modules/**",
+  "**/.venv/**",
+  "**/venv/**",
+  "**/dist/**",
+  "**/lib/**",
+  "**/target/**",
+  "**/build/**",
+];
 const WONTFIX_LABEL = "terratrace:wontfix";
 const ADVISORY_LABEL = "terratrace:advisory";
 
@@ -89,8 +100,18 @@ async function buildAnalyzer(): Promise<CodeAnalyzer> {
         "avoid platform-specific native-module bundling for CI runners.)",
     );
   }
-  core.info("terratrace: semgrep detected — using SemgrepAnalyzer.");
-  return new SemgrepAnalyzer({ rulesDir: BUNDLED_SEMGREP_RULES });
+  core.info(
+    `terratrace: semgrep detected — using SemgrepAnalyzer for ${SUPPORTED_LANGUAGES.map((l) => l.id).join(", ")}.`,
+  );
+  return new MultiLanguageAnalyzer(
+    SUPPORTED_LANGUAGES.map((language) => ({
+      extensions: language.extensions,
+      analyzer: new SemgrepAnalyzer({
+        language: language.id,
+        rulesDir: path.join(BUNDLED_SEMGREP_RULES, language.id),
+      }),
+    })),
+  );
 }
 
 async function runPullRequestFlow(
@@ -114,13 +135,13 @@ async function runPullRequestFlow(
     pull_number: prNumber,
   });
 
-  const pythonFiles = changedFiles.filter(
-    (file) => file.filename.endsWith(".py") && file.status !== "removed",
+  const scannableFiles = changedFiles.filter(
+    (file) => SCAN_EXTENSIONS.has(path.extname(file.filename)) && file.status !== "removed",
   );
 
   const results: FindingWithExplanation[] = [];
 
-  for (const file of pythonFiles) {
+  for (const file of scannableFiles) {
     const sourceCode = await readFile(file.filename, "utf-8");
     const findings = await analyzer.analyzeFile(file.filename, sourceCode);
 
@@ -134,7 +155,7 @@ async function runPullRequestFlow(
   }
 
   if (results.length === 0) {
-    core.info("terratrace: no findings in this PR's Python changes.");
+    core.info("terratrace: no findings in this PR's scannable changes.");
     return;
   }
 
@@ -174,8 +195,8 @@ async function runFixPrFlow(
   });
   const baseSha = baseRef.object.sha;
 
-  const files = await fg(SCAN_GLOB, { ignore: SCAN_IGNORE, dot: false });
-  core.info(`terratrace: fix-pr flow scanning ${files.length} .py file(s).`);
+  const files = await fg(SCAN_GLOBS, { ignore: SCAN_IGNORE, dot: false });
+  core.info(`terratrace: fix-pr flow scanning ${files.length} source file(s).`);
 
   let prOpened = 0;
   let prSkippedExisting = 0;

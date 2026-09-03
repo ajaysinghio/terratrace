@@ -35,6 +35,9 @@ terratrace/
 ├── README.md
 └── packages/
     ├── core/
+    │   ├── rules-semgrep/
+    │   │   ├── python/*.yaml       (declarative rule pack, one file per rule)
+    │   │   └── java/*.yaml
     │   └── src/
     │       ├── index.ts           (re-exports everything below)
     │       ├── types.ts           (shared domain types)
@@ -45,8 +48,13 @@ terratrace/
     │       ├── analyzer/
     │       │   ├── CodeAnalyzer.ts         (interface + DetectionRule interface)
     │       │   ├── PythonAnalyzer.ts       (tree-sitter-python implementation)
+    │       │   ├── JavaAnalyzer.ts         (thin SemgrepAnalyzer wrapper for Java)
+    │       │   ├── SemgrepAnalyzer.ts      (declarative rule engine, any Semgrep-supported language)
+    │       │   ├── CompositeAnalyzer.ts    (runs several engines against the SAME language)
+    │       │   ├── MultiLanguageAnalyzer.ts (dispatches per file extension across DIFFERENT languages)
+    │       │   ├── languages.ts            (SUPPORTED_LANGUAGES: id/extensions/glob per language)
     │       │   └── rules/
-    │       │       ├── nPlusOneQuery.ts    (example rule)
+    │       │       ├── python/database.ts  (legacy tree-sitter rule, kept for the offline harness)
     │       │       └── registry.ts         (pythonRules: DetectionRule[])
     │       ├── llm/
     │       │   ├── LLMProvider.ts          (interface)
@@ -86,14 +94,20 @@ another later without touching any caller.
   mode (e.g. live Athena): write a new class implementing
   `CloudBillingSource` in `packages/core/src/billing/`; nothing else changes.
 
-- **`CodeAnalyzer`** — one method, `analyzeFile(filePath, sourceCode)`. Only
-  implementation today is `PythonAnalyzer`, which runs a pluggable list of
-  `DetectionRule`s against a tree-sitter parse tree. **To add a new
-  language**: write a new `CodeAnalyzer` (e.g. backed by
-  `tree-sitter-javascript`) plus its own rule set under
-  `packages/core/src/analyzer/`; the CLI, GitHub Action, and dashboard never
-  need to change. **To add a new detection**: add a `DetectionRule` to
-  `rules/registry.ts`.
+- **`CodeAnalyzer`** — one method, `analyzeFile(filePath, sourceCode)`.
+  Detection rules today are declarative Semgrep YAML under
+  `packages/core/rules-semgrep/<language>/`, run through `SemgrepAnalyzer`
+  (generic across any language Semgrep supports). `PythonAnalyzer` and
+  `JavaAnalyzer` are the named per-language entry points — `PythonAnalyzer`
+  also carries a pluggable `DetectionRule[]` tree-sitter path for detections
+  Semgrep's pattern language can't express (empty by default; see
+  `rules/registry.ts`). `CompositeAnalyzer` combines multiple engines for
+  *one* language (e.g. Semgrep + tree-sitter rules for Python);
+  `MultiLanguageAnalyzer` dispatches per file extension across *different*
+  languages (e.g. Python + Java) behind one `CodeAnalyzer`. **To add a new
+  language**: see "Adding a new language analyzer" below. **To add a new
+  detection to an existing language**: add a `.yaml` file under
+  `rules-semgrep/<language>/`.
 
 - **`LLMProvider`** — three methods: `explainFinding`, `generateFix`,
   `answerQuery`, every one of them taking a structured `EvidenceBundle`
@@ -126,28 +140,53 @@ another later without touching any caller.
 
 ## Adding a new language analyzer
 
-1. Create `packages/core/src/analyzer/<Language>Analyzer.ts` implementing
-   `CodeAnalyzer` (`language: string`, `analyzeFile(filePath, sourceCode)`),
-   backed by the relevant tree-sitter grammar package.
-2. Add a `packages/core/src/analyzer/rules/` registry for that language's
-   `DetectionRule[]`, following `nPlusOneQuery.ts` / `registry.ts` as the
-   template.
-3. Export the analyzer and its rule registry from
-   `packages/core/src/index.ts`.
+Follow `JavaAnalyzer.ts` as the template — the default path for a new
+language is Semgrep-only, no new native parser dependency required:
+
+1. Add `packages/core/rules-semgrep/<language>/*.yaml` — one Semgrep rule
+   file per detection, following the existing Python/Java packs (same rule
+   `id` across languages when the detection is conceptually the same, e.g.
+   `n-plus-one-query` exists for both).
+2. Create `packages/core/src/analyzer/<Language>Analyzer.ts` implementing
+   `CodeAnalyzer`: a thin class whose `analyzeFile` delegates to a
+   `SemgrepAnalyzer` constructed with `{ language: "<language>", rulesDir:
+   <path to that pack> }`. This gives the language a discoverable named
+   entry point (matching `PythonAnalyzer`/`JavaAnalyzer`) without writing a
+   tree-sitter grammar you don't need yet.
+3. Add an entry to `SUPPORTED_LANGUAGES` in
+   `packages/core/src/analyzer/languages.ts` (`id`, file `extensions`,
+   `glob`) — `cli` and `github-action` both build their file glob and their
+   `MultiLanguageAnalyzer` wiring from this list, so this one entry is
+   enough for both to pick up the new language.
+4. Export the new analyzer from `packages/core/src/index.ts`.
+5. Add at least one planted-pattern sample file under `sample-repo/` (see
+   the existing Python files and the `sample-repo/java/` tree) so the
+   detection is exercisable end-to-end via the CLI.
+
+Only reach for a real tree-sitter grammar (like `PythonAnalyzer`'s legacy
+path) when a detection genuinely needs control-flow/AST reasoning Semgrep's
+pattern language can't express — see the note at the top of
+`rules/registry.ts` for why Python's tree-sitter rule set is empty by
+default today.
 
 ### Adding a detection rule to an existing language
 
-Add a new file under `analyzer/rules/`, implement `DetectionRule` (`id`,
-`description`, `severity`, `detect({ filePath, sourceCode, tree })`), and
-add it to that language's registry array (e.g. `pythonRules`). Keep rule
-heuristics honest in their own comments about false-positive/negative risk —
-see the note at the top of `nPlusOneQuery.ts`.
+Add a new `.yaml` file under `rules-semgrep/<language>/` (see
+`n-plus-one-query.yaml` for the shape: `id`, `languages`, `severity`,
+`message`, `metadata`, `patterns`/`pattern`). Keep rule heuristics honest in
+their own comments about false-positive/negative risk — see the note at the
+top of `unbounded-query.yaml` for the tone to match. (The legacy
+tree-sitter path — implement `DetectionRule` and add it to a language's
+registry array — still exists for control-flow detections Semgrep can't
+express; see `rules/python/database.ts`.)
 
 If the new rule should get a carbon estimate, add its `id` to
 `RULE_SERVICE_MAP` in `packages/core/src/carbon/correlate.ts`, mapping it to
-the AWS service it most directly amplifies (e.g. a "chatty S3 list" rule
-would map to `AmazonS3`). Without an entry there, `correlateFindingsWithUsage`
-silently skips that rule's findings — they just won't carry an `estimate`.
+the AWS service it most directly amplifies (e.g. `chatty-s3-loop` maps to
+`AmazonS3`). Without an entry there, `correlateFindingsWithUsage` silently
+skips that rule's findings — they just won't carry an `estimate`. Rule ids
+are shared across languages, so one `RULE_SERVICE_MAP` entry covers a
+detection's Python and Java (and future-language) implementations alike.
 
 ## Adding or swapping an LLM provider
 
@@ -191,8 +230,8 @@ and (for analyzer bugs) the offending code snippet.
 - **Person A** — billing + carbon math, later the live grid-carbon-intensity
   API for batch-workload timing recommendations
   (`packages/core/src/billing/`, `packages/core/src/carbon/`).
-- **Person B** — analyzer + detection rules, expanding beyond the N+1 query
-  heuristic and eventually beyond Python
+- **Person B** — analyzer + detection rules, expanding the Semgrep rule packs
+  (`packages/core/rules-semgrep/`) and language coverage beyond Python/Java
   (`packages/core/src/analyzer/`).
 - **Person C** — dashboard + GitHub Action, the surfaces judges/users
   actually see (`packages/dashboard/`, `packages/github-action/`).

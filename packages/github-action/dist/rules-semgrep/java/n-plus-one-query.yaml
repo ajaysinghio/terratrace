@@ -1,0 +1,42 @@
+rules:
+  - id: n-plus-one-query
+    languages: [java]
+    severity: WARNING
+    message: >-
+      This loop appears to issue a database call on every iteration (N+1 query pattern).
+      Each iteration adds its own round-trip cost and carbon overhead; batch it into a single
+      query (e.g. a Spring Data `findAllById`/derived `IN` query, or a JPQL/Criteria fetch join)
+      before the loop instead.
+    metadata:
+      category: performance
+      terratrace-lens: database
+      terratrace-severity: high
+    patterns:
+      # Match the ENTIRE for-loop (not just the inner repository/EntityManager
+      # call) so the finding's snippet gives the LLM enough surrounding
+      # context to author a fix, mirroring the Python n-plus-one-query rule.
+      - pattern-either:
+          - pattern: |
+              for ($TYPE $VAR : $COLL) {
+                ...
+                $REPO.findById(...);
+                ...
+              }
+          - pattern: |
+              for ($TYPE $VAR : $COLL) {
+                ...
+                $REPO.getById(...);
+                ...
+              }
+          - pattern: |
+              for ($TYPE $VAR : $COLL) {
+                ...
+                $REPO.getOne(...);
+                ...
+              }
+          - pattern: |
+              for ($TYPE $VAR : $COLL) {
+                ...
+                $EM.find(...);
+                ...
+              }

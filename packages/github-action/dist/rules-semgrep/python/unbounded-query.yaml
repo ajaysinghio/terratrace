@@ -1,0 +1,17 @@
+rules:
+  - id: unbounded-query
+    languages: [python]
+    severity: WARNING
+    message: >-
+      This materializes an entire queryset into memory in one call instead of paginating or
+      streaming it. For large tables this multiplies both the RDS read cost and the carbon
+      footprint of a single request; use `.iterator()`, cursor-based pagination, or an
+      explicit `.filter()`/slice instead of pulling every row at once.
+    metadata:
+      category: performance
+      terratrace-lens: database
+      terratrace-severity: medium
+    # NOTE: like n-plus-one-query, this is a starting heuristic tuned to Django's
+    # `Model.objects.all()` idiom, not a precise per-ORM detector — SQLAlchemy/Peewee
+    # equivalents will need their own patterns as false positive/negative rates come in.
+    pattern: list($MODEL.objects.all())

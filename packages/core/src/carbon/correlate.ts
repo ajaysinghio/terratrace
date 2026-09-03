@@ -1,12 +1,13 @@
 import type { CarbonEstimate, CodeFinding, UsageRecord } from "../types.js";
 import { estimateCarbon } from "./carbonMath.js";
 
-// Maps a detection rule to the AWS service it most directly amplifies.
-// Placeholder mapping for the N+1 heuristic today — extend this as more
-// rules are added (e.g. a "missing-index-scan" rule might also map to
-// AmazonRDS, while a "chatty-s3-list" rule would map to AmazonS3).
+// Maps a detection rule to the AWS service it most directly amplifies. Rule
+// ids are shared across languages (see rules-semgrep/<language>/*.yaml), so
+// one entry here covers a rule's Python and Java implementations alike.
 export const RULE_SERVICE_MAP: Record<string, string> = {
   "n-plus-one-query": "AmazonRDS",
+  "unbounded-query": "AmazonRDS",
+  "chatty-s3-loop": "AmazonS3",
 };
 
 /**
