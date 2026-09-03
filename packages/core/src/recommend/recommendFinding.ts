@@ -36,10 +36,18 @@ export function computeIdempotencyKey(finding: CodeFinding): string {
  * internally to compare findings across scans without relying on
  * `finding.id`, which today is a fresh randomUUID per analyze call and so
  * can never match between a baseline scan and a post-patch re-scan.
+ *
+ * filePath is normalized before hashing: leading `./` stripped, backslash
+ * separators mapped to forward slashes. Necessary because the CLI's glob
+ * ("./sample-repo/**\/*.py") and the Action's glob ("**\/*.py") produce
+ * paths with and without the `./` prefix — same finding, different string
+ * → different hash → dashboard "View PR" links point at labels that don't
+ * exist on any real PR.
  */
 function findingStructuralKey(finding: CodeFinding): string {
+  const normalizedPath = finding.filePath.replace(/\\/g, "/").replace(/^\.\//, "");
   return createHash("sha256")
-    .update(`${finding.ruleId}\0${finding.filePath}\0${finding.snippet}`)
+    .update(`${finding.ruleId}\0${normalizedPath}\0${finding.snippet}`)
     .digest("hex");
 }
 
