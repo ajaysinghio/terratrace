@@ -303,32 +303,6 @@ body {
   margin-top: 0.25rem;
 }
 
-.role-tabs {
-  display: flex;
-  gap: 0.4rem;
-  margin-top: 1rem;
-}
-
-.role-tab {
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  color: var(--text-muted);
-  font-size: 0.85rem;
-  padding: 0.4rem 0.9rem;
-  cursor: pointer;
-  transition: border-color 0.15s ease, color 0.15s ease;
-}
-
-.role-tab:hover {
-  color: var(--text);
-}
-
-.role-tab--active {
-  border-color: var(--accent);
-  color: var(--text);
-  font-weight: 600;
-}
 
 .reco-list,
 .fix-list {
@@ -386,4 +360,163 @@ body {
   color: var(--text-muted);
   font-size: 0.8rem;
   margin-left: auto;
+}
+
+.landing {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+}
+
+.landing__card {
+  max-width: 420px;
+  text-align: center;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 2.5rem 2rem;
+}
+
+.landing__card h1 {
+  margin: 0 0 0.75rem;
+  font-size: 1.75rem;
+}
+
+.landing__tagline {
+  color: var(--text-muted);
+  margin: 0 0 1.5rem;
+  line-height: 1.5;
+}
+
+.landing__cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: #238636;
+  color: #fff;
+  text-decoration: none;
+  font-weight: 600;
+  padding: 0.65rem 1.4rem;
+  border-radius: 8px;
+  transition: background 0.15s ease;
+}
+
+.landing__cta:hover {
+  background: #2ea043;
+}
+
+.landing__hint {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  margin: 1.25rem 0 0;
+}
+
+.account-menu {
+  position: fixed;
+  top: 1.25rem;
+  right: 1.5rem;
+  z-index: 10;
+}
+
+.account-menu__trigger {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  line-height: 0;
+}
+
+.account-menu__avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  display: block;
+}
+
+.account-menu__avatar--placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-card);
+  color: var(--text-muted);
+  font-weight: 700;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+}
+
+.account-menu__section-label {
+  margin: 0 0 0.4rem;
+  font-size: 0.7rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.account-menu__roles {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  margin-bottom: 0.6rem;
+}
+
+.account-menu__role {
+  background: none;
+  border: none;
+  border-radius: 6px;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  text-align: left;
+  padding: 0.4rem 0.5rem;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.account-menu__role:hover {
+  background: var(--bg);
+  color: var(--text);
+}
+
+.account-menu__role--active {
+  background: var(--bg);
+  color: var(--text);
+  font-weight: 600;
+}
+
+.account-menu__dropdown {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  right: 0;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.85rem 1rem;
+  min-width: 180px;
+  box-shadow: 0 8px 24px rgba(1, 4, 9, 0.5);
+}
+
+.account-menu__login {
+  margin: 0 0 0.6rem;
+  padding-bottom: 0.6rem;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.account-menu__signout {
+  display: block;
+  margin-top: 0.6rem;
+  padding-top: 0.6rem;
+  border-top: 1px solid var(--border);
+  color: var(--text);
+  text-decoration: none;
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.account-menu__signout:hover {
+  color: var(--accent);
 }

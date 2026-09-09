@@ -1,7 +1,8 @@
 // Plain module (no "use client") — parseRole/ROLE_RANK need to be callable
-// from Server Components (page.tsx). RoleTabs.tsx re-exports these for
-// convenience but is itself a Client Component; a "use client" directive
-// marks every export of a file as client-only, so these can't live there.
+// from Server Components (page.tsx). AccountMenu.tsx re-exports ROLES for
+// its role-switcher but is itself a Client Component; a "use client"
+// directive marks every export of a file as client-only, so these can't
+// live there.
 
 export type Role = "executive" | "manager" | "engineer";
 

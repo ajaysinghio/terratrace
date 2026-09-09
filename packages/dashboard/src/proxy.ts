@@ -13,6 +13,12 @@ export function proxy(request: NextRequest) {
   // deploy sets GITHUB_OAUTH_CLIENT_ID (see README's Vercel deploy notes).
   if (!process.env.GITHUB_OAUTH_CLIENT_ID) return NextResponse.next();
 
+  // "/" is the public landing page — it does its own session check to
+  // redirect an already-signed-in visitor straight to /dashboard, and it's
+  // also where /api/auth/logout sends people, so it must stay reachable
+  // while signed out.
+  if (request.nextUrl.pathname === "/") return NextResponse.next();
+
   const session = verifySessionCookieValue(request.cookies.get(COOKIE_NAME)?.value);
   if (session) return NextResponse.next();
 

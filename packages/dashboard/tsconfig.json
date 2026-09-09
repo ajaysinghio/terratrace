@@ -1,6 +1,10 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
+    // tsconfig.base.json's "lib": ["ES2022"] is scoped for Node-only
+    // packages — the dashboard is a browser app too (client components),
+    // so it needs DOM types the base config deliberately omits.
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "module": "ESNext",
     "moduleResolution": "Bundler",
     "rootDir": ".",

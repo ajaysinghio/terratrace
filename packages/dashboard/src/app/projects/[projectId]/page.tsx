@@ -1,13 +1,15 @@
 import Link from "next/link";
+import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 import Dashboard from "../../../components/Dashboard";
-import RoleTabs from "../../../components/RoleTabs";
+import AccountMenu from "../../../components/AccountMenu";
 import { parseRole } from "../../../lib/role";
 import { loadProject } from "../../../lib/projects";
 import { computeFixesInProgress, computeRecommendations, computeServiceBreakdown } from "../../../lib/roleStats";
+import { COOKIE_NAME, verifySessionCookieValue } from "../../../lib/session";
 
-// See the note on the home page (../../page.tsx) — force per-request reads
-// of scan-output/ rather than a build-time snapshot.
+// See the note on the dashboard page (../../dashboard/page.tsx) — force
+// per-request reads of scan-output/ rather than a build-time snapshot.
 export const dynamic = "force-dynamic";
 
 export default async function ProjectPage({
@@ -20,6 +22,9 @@ export default async function ProjectPage({
   const { projectId } = await params;
   const { view } = await searchParams;
   const role = parseRole(view, "engineer");
+  const session = process.env.GITHUB_OAUTH_CLIENT_ID
+    ? verifySessionCookieValue((await cookies()).get(COOKIE_NAME)?.value)
+    : null;
   const data = await loadProject(projectId);
 
   if (!data) {
@@ -29,7 +34,7 @@ export default async function ProjectPage({
   return (
     <div className="dashboard">
       <header className="dashboard__header">
-        <Link href="/" className="back-link">
+        <Link href="/dashboard" className="back-link">
           ← All projects
         </Link>
         <h1>{data.project.name}</h1>
@@ -37,13 +42,8 @@ export default async function ProjectPage({
           {data.project.repoUrl ?? data.project.id}
           {data.project.scannedAt && ` · scanned ${new Date(data.project.scannedAt).toLocaleString()}`}
         </p>
-        <RoleTabs active={role} />
-        {process.env.GITHUB_OAUTH_CLIENT_ID && (
-          <a href="/api/auth/logout" className="back-link">
-            Sign out
-          </a>
-        )}
       </header>
+      <AccountMenu role={role} login={session?.login} />
       <Dashboard
         findings={data.findings}
         repoUrl={data.project.repoUrl}
