@@ -40,6 +40,8 @@ export interface DashboardStats {
   total: number;
   filesAffected: number;
   totalKgCO2e: number | null;
+  totalCostUsd: number | null;
+  fixedCount: number;
   hasCarbonEstimate: boolean;
   carbonMethodology: string | null;
   carbonConfidence: string | null;
@@ -69,6 +71,8 @@ export function computeStats(findings: EnrichedFinding[]): DashboardStats {
   const ruleMap = new Map<string, number>();
   const carbonByFileMap = new Map<string, number>();
   let totalKgCO2e = 0;
+  let totalCostUsd = 0;
+  let fixedCount = 0;
   let hasCarbonEstimate = false;
   let carbonMethodology: string | null = null;
   let carbonConfidence: string | null = null;
@@ -77,6 +81,7 @@ export function computeStats(findings: EnrichedFinding[]): DashboardStats {
   for (const finding of findings) {
     severityCounts[finding.severity] += 1;
     ruleMap.set(finding.ruleId, (ruleMap.get(finding.ruleId) ?? 0) + 1);
+    if (finding.idempotencyKey) fixedCount += 1;
 
     if (!fileMap.has(finding.filePath)) {
       fileMap.set(finding.filePath, { low: 0, medium: 0, high: 0 });
@@ -86,6 +91,11 @@ export function computeStats(findings: EnrichedFinding[]): DashboardStats {
     if (finding.estimate) {
       hasCarbonEstimate = true;
       totalKgCO2e += finding.estimate.kgCO2e;
+      // ?? 0 guards scan-output written before costUsd existed on the
+      // estimate shape — without it, one legacy record's `undefined` turns
+      // the whole running sum into NaN (NaN, unlike null/undefined, isn't
+      // caught by `??` and silently poisons every += after it).
+      totalCostUsd += finding.estimate.costUsd ?? 0;
       carbonByFileMap.set(finding.filePath, (carbonByFileMap.get(finding.filePath) ?? 0) + finding.estimate.kgCO2e);
       weightedIntensitySum += finding.estimate.kgCO2e * finding.estimate.gridIntensityGco2PerKwh;
       carbonMethodology = finding.estimate.methodology;
@@ -114,6 +124,8 @@ export function computeStats(findings: EnrichedFinding[]): DashboardStats {
     total: findings.length,
     filesAffected: fileMap.size,
     totalKgCO2e: hasCarbonEstimate ? totalKgCO2e : null,
+    totalCostUsd: hasCarbonEstimate ? totalCostUsd : null,
+    fixedCount,
     hasCarbonEstimate,
     carbonMethodology,
     carbonConfidence,

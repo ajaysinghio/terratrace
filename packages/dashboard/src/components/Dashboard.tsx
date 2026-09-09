@@ -52,6 +52,11 @@ function shortPath(filePath: string): string {
   return filePath.split("/").pop() ?? filePath;
 }
 
+const usd = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
+function formatUsd(value: number): string {
+  return usd.format(value);
+}
+
 function StatTile({ label, value, accent }: { label: string; value: string; accent?: string }) {
   return (
     <div className="stat-tile">
@@ -205,6 +210,7 @@ export function ServiceBreakdownChart({ data }: { data: ServiceImpact[] }) {
   if (data.length === 0) {
     return <div className="empty-chart">No findings to chart.</div>;
   }
+  const hasCost = data.some((d) => d.costUsd > 0);
   return (
     <ResponsiveContainer width="100%" height={Math.max(160, data.length * 42)}>
       <BarChart data={data} layout="vertical" margin={{ left: 8, right: 16 }}>
@@ -213,12 +219,13 @@ export function ServiceBreakdownChart({ data }: { data: ServiceImpact[] }) {
         <YAxis type="category" dataKey="service" stroke="#8b949e" fontSize={12} width={110} />
         <Tooltip
           contentStyle={{ background: "#161b22", border: "1px solid #30363d", borderRadius: 8 }}
-          formatter={(value, name) => [
-            name === "count" ? `${value} finding(s)` : `${Number(value).toFixed(4)} kgCO2e`,
-            name === "count" ? "Findings" : "Estimated emissions",
-          ]}
+          formatter={(value, name, item) => {
+            const d = item.payload as ServiceImpact;
+            if (name === "costUsd") return [formatUsd(value as number), "Est. monthly cost"];
+            return [`${d.count} finding(s) · ${d.kgCO2e.toFixed(3)} kgCO2e`, "Findings"];
+          }}
         />
-        <Bar dataKey="count" fill="#58a6ff" radius={[0, 4, 4, 0]} />
+        <Bar dataKey={hasCost ? "costUsd" : "count"} fill="#58a6ff" radius={[0, 4, 4, 0]} />
       </BarChart>
     </ResponsiveContainer>
   );
@@ -235,6 +242,7 @@ export function RecommendationsList({ recommendations }: { recommendations: Reco
           <div className="reco__header">
             <span className="finding__rule">{r.ruleId}</span>
             <span className="reco__count">
+              {r.totalCostUsd > 0 && <>{formatUsd(r.totalCostUsd)}/mo · </>}
               {r.count} occurrence{r.count === 1 ? "" : "s"} · {r.filePaths.length} file
               {r.filePaths.length === 1 ? "" : "s"}
               {r.totalKgCO2e > 0 && <> · {r.totalKgCO2e.toFixed(3)} kgCO2e</>}
@@ -284,16 +292,26 @@ export default function Dashboard({ findings, repoUrl, role, serviceBreakdown, r
       <section className="stat-grid">
         <StatTile label="Total findings" value={String(stats.total)} />
         <StatTile
-          label="High severity"
-          value={String(stats.severityCounts.find((s) => s.severity === "high")?.count ?? 0)}
-          accent={SEVERITY_COLOR.high}
+          label="Est. cost impact"
+          value={stats.totalCostUsd ? `${formatUsd(stats.totalCostUsd)}/mo` : "—"}
+          accent={stats.totalCostUsd ? "#d29922" : undefined}
         />
-        <StatTile label="Files affected" value={String(stats.filesAffected)} />
         <StatTile
           label="Est. carbon impact"
           value={stats.hasCarbonEstimate ? `${stats.totalKgCO2e!.toFixed(3)} kgCO2e` : "—"}
           accent={stats.hasCarbonEstimate ? "#3fb950" : undefined}
         />
+        <StatTile
+          label="High severity"
+          value={String(stats.severityCounts.find((s) => s.severity === "high")?.count ?? 0)}
+          accent={SEVERITY_COLOR.high}
+        />
+        <StatTile
+          label="Remediation progress"
+          value={stats.total > 0 ? `${Math.round((stats.fixedCount / stats.total) * 100)}%` : "—"}
+          accent="#58a6ff"
+        />
+        <StatTile label="Files affected" value={String(stats.filesAffected)} />
       </section>
 
       <section className="chart-grid">

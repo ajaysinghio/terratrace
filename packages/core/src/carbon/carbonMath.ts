@@ -16,8 +16,14 @@ export function estimateCarbon(records: UsageRecord[]): CarbonEstimate {
   let totalKwh = 0;
   let weightedIntensitySum = 0;
   let coveredCount = 0;
+  // Cost is billed, real money regardless of whether an energy model covers
+  // the record — unlike kgCO2e, it isn't derived, so it's summed over every
+  // record rather than gated behind `model`/`kwh` coverage.
+  let totalCostUsd = 0;
 
   for (const record of records) {
+    totalCostUsd += record.costUsd;
+
     const model = energyModelFor(record.provider);
     if (!model) continue;
 
@@ -42,5 +48,6 @@ export function estimateCarbon(records: UsageRecord[]): CarbonEstimate {
     methodology: "ccf-derived",
     gridIntensityGco2PerKwh: averageGridIntensityKgPerKwh * 1000,
     confidence: coverage >= 0.8 ? "medium" : "low",
+    costUsd: totalCostUsd,
   };
 }

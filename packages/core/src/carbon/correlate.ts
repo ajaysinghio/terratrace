@@ -48,6 +48,7 @@ export function correlateFindingsWithUsage(
     const perFindingEstimate: CarbonEstimate = {
       ...groupEstimate,
       kgCO2e: groupEstimate.kgCO2e / serviceFindings.length,
+      costUsd: groupEstimate.costUsd / serviceFindings.length,
     };
 
     for (const finding of serviceFindings) {

@@ -6,6 +6,8 @@ import { loadAllProjects } from "../lib/projects";
 import { computeRecommendations, computeServiceBreakdown } from "../lib/roleStats";
 import { computeStats, SEVERITY_COLOR } from "../lib/stats";
 
+const usd = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
+
 // Without this, Next.js sees no dynamic API used and statically prerenders
 // this page once at `next build` time — freezing the project list to
 // whatever scan-output/ contained at build time instead of what's actually
@@ -46,9 +48,11 @@ export default async function HomePage({
       acc.findings += s.stats.total;
       acc.high += s.stats.severityCounts.find((sc) => sc.severity === "high")?.count ?? 0;
       acc.kgCO2e += s.stats.totalKgCO2e ?? 0;
+      acc.costUsd += s.stats.totalCostUsd ?? 0;
+      acc.fixed += s.stats.fixedCount;
       return acc;
     },
-    { findings: 0, high: 0, kgCO2e: 0 },
+    { findings: 0, high: 0, kgCO2e: 0, costUsd: 0, fixed: 0 },
   );
 
   return (
@@ -57,7 +61,16 @@ export default async function HomePage({
         <h1>🌱 TerraTrace</h1>
         <p>
           {summaries.length} project(s) scanned · {orgTotals.findings} finding(s) total · {orgTotals.high} high
-          severity · {orgTotals.kgCO2e > 0 ? `${orgTotals.kgCO2e.toFixed(2)} kgCO2e estimated` : "no carbon estimate yet"}
+          severity
+          {orgTotals.costUsd > 0 && (
+            <>
+              {" "}
+              · <strong>{usd.format(orgTotals.costUsd)}/mo</strong> at risk
+            </>
+          )}{" "}
+          · {orgTotals.kgCO2e > 0 ? `${orgTotals.kgCO2e.toFixed(2)} kgCO2e estimated` : "no carbon estimate yet"}
+          {orgTotals.findings > 0 &&
+            ` · ${Math.round((orgTotals.fixed / orgTotals.findings) * 100)}% remediation progress`}
         </p>
         <RoleTabs active={role} />
       </header>

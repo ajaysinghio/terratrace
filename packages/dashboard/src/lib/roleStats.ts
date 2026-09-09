@@ -16,6 +16,7 @@ export interface ServiceImpact {
   service: string;
   count: number;
   kgCO2e: number;
+  costUsd: number;
 }
 
 export interface Recommendation {
@@ -24,6 +25,7 @@ export interface Recommendation {
   severity: EnrichedFinding["severity"];
   message: string;
   totalKgCO2e: number;
+  totalCostUsd: number;
   filePaths: string[];
 }
 
@@ -42,17 +44,18 @@ export interface FixInProgress {
  * total always matches the finding count.
  */
 export function computeServiceBreakdown(findings: EnrichedFinding[]): ServiceImpact[] {
-  const byService = new Map<string, { count: number; kgCO2e: number }>();
+  const byService = new Map<string, { count: number; kgCO2e: number; costUsd: number }>();
   for (const finding of findings) {
     const service = RULE_SERVICE_MAP[finding.ruleId] ?? "Unmapped";
-    const entry = byService.get(service) ?? { count: 0, kgCO2e: 0 };
+    const entry = byService.get(service) ?? { count: 0, kgCO2e: 0, costUsd: 0 };
     entry.count += 1;
     entry.kgCO2e += finding.estimate?.kgCO2e ?? 0;
+    entry.costUsd += finding.estimate?.costUsd ?? 0;
     byService.set(service, entry);
   }
   return Array.from(byService.entries())
     .map(([service, v]) => ({ service, ...v }))
-    .sort((a, b) => b.kgCO2e - a.kgCO2e || b.count - a.count);
+    .sort((a, b) => b.costUsd - a.costUsd || b.kgCO2e - a.kgCO2e || b.count - a.count);
 }
 
 /**
@@ -68,6 +71,7 @@ export function computeRecommendations(findings: EnrichedFinding[]): Recommendat
     if (existing) {
       existing.count += 1;
       existing.totalKgCO2e += finding.estimate?.kgCO2e ?? 0;
+      existing.totalCostUsd += finding.estimate?.costUsd ?? 0;
       if (!existing.filePaths.includes(finding.filePath)) existing.filePaths.push(finding.filePath);
       if (SEVERITY_WEIGHT[finding.severity] > SEVERITY_WEIGHT[existing.severity]) existing.severity = finding.severity;
     } else {
@@ -77,11 +81,12 @@ export function computeRecommendations(findings: EnrichedFinding[]): Recommendat
         severity: finding.severity,
         message: finding.message,
         totalKgCO2e: finding.estimate?.kgCO2e ?? 0,
+        totalCostUsd: finding.estimate?.costUsd ?? 0,
         filePaths: [finding.filePath],
       });
     }
   }
-  return Array.from(byRule.values()).sort((a, b) => b.totalKgCO2e - a.totalKgCO2e || b.count - a.count);
+  return Array.from(byRule.values()).sort((a, b) => b.totalCostUsd - a.totalCostUsd || b.totalKgCO2e - a.totalKgCO2e || b.count - a.count);
 }
 
 /**

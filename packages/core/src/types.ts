@@ -27,6 +27,8 @@ export interface CarbonEstimate {
   methodology: "sci" | "ccf-derived";
   gridIntensityGco2PerKwh: number;
   confidence: "low" | "medium" | "high";
+  /** Sum of the billing usage records' costUsd this estimate was derived from. */
+  costUsd: number;
 }
 
 export type Severity = "low" | "medium" | "high";
