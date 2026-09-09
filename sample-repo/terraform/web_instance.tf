@@ -3,7 +3,7 @@
 # below.
 resource "aws_instance" "web" {
   ami           = "ami-0abcdef1234567890"
-  instance_type = "m5.4xlarge"
+  instance_type = "t3.small"
 
   tags = {
     Name = "web"
