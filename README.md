@@ -79,11 +79,23 @@ is a new `.yaml` file plus a `RULE_SERVICE_MAP` entry in
 `packages/core/src/carbon/correlate.ts`. See "Adding a new language analyzer"
 / "Adding a detection rule" in [CONTRIBUTING.md](./CONTRIBUTING.md).
 
+**Application code** (Python, Java):
+
 | Rule | Python | Java | Billed service |
 |---|---|---|---|
 | `n-plus-one-query` — DB call issued once per loop iteration instead of batched | ✅ | ✅ | AmazonRDS |
 | `unbounded-query` — fetches a whole table into memory instead of paginating/streaming | ✅ | ✅ | AmazonRDS |
 | `chatty-s3-loop` — S3 API call issued once per loop iteration instead of batched | ✅ | ✅ | AmazonS3 |
+
+**Infrastructure as code** (Terraform, prototype — AWS resource types only today;
+see `TerraformAnalyzer.ts` for why a GCP/Azure/on-prem IaC analyzer is a new
+class next to it, not a rewrite):
+
+| Rule | Billed service |
+|---|---|
+| `oversized-instance-type` — `aws_instance` using a 4xlarge-or-larger instance type | AmazonEC2 |
+| `missing-lifecycle-policy` — `aws_s3_bucket` with no lifecycle rule, so objects accumulate forever | AmazonS3 |
+| `no-autoscaling-floor` — `aws_autoscaling_group` with `min_size == max_size`, so it never scales down | AmazonEC2 |
 
 **Planned, not yet implemented** (prototyped as ideas, deliberately deferred
 because a precise Semgrep pattern needs dataflow reasoning a plain AST match

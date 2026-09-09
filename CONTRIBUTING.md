@@ -37,7 +37,8 @@ terratrace/
     ├── core/
     │   ├── rules-semgrep/
     │   │   ├── python/*.yaml       (declarative rule pack, one file per rule)
-    │   │   └── java/*.yaml
+    │   │   ├── java/*.yaml
+    │   │   └── terraform/*.yaml    (AWS-resource rules only today, prototype scope)
     │   └── src/
     │       ├── index.ts           (re-exports everything below)
     │       ├── types.ts           (shared domain types)
@@ -49,6 +50,7 @@ terratrace/
     │       │   ├── CodeAnalyzer.ts         (interface + DetectionRule interface)
     │       │   ├── PythonAnalyzer.ts       (tree-sitter-python implementation)
     │       │   ├── JavaAnalyzer.ts         (thin SemgrepAnalyzer wrapper for Java)
+    │       │   ├── TerraformAnalyzer.ts    (thin SemgrepAnalyzer wrapper for Terraform/HCL)
     │       │   ├── SemgrepAnalyzer.ts      (declarative rule engine, any Semgrep-supported language)
     │       │   ├── CompositeAnalyzer.ts    (runs several engines against the SAME language)
     │       │   ├── MultiLanguageAnalyzer.ts (dispatches per file extension across DIFFERENT languages)
@@ -97,14 +99,15 @@ another later without touching any caller.
 - **`CodeAnalyzer`** — one method, `analyzeFile(filePath, sourceCode)`.
   Detection rules today are declarative Semgrep YAML under
   `packages/core/rules-semgrep/<language>/`, run through `SemgrepAnalyzer`
-  (generic across any language Semgrep supports). `PythonAnalyzer` and
-  `JavaAnalyzer` are the named per-language entry points — `PythonAnalyzer`
-  also carries a pluggable `DetectionRule[]` tree-sitter path for detections
-  Semgrep's pattern language can't express (empty by default; see
-  `rules/registry.ts`). `CompositeAnalyzer` combines multiple engines for
-  *one* language (e.g. Semgrep + tree-sitter rules for Python);
-  `MultiLanguageAnalyzer` dispatches per file extension across *different*
-  languages (e.g. Python + Java) behind one `CodeAnalyzer`. **To add a new
+  (generic across any language Semgrep supports). `PythonAnalyzer`,
+  `JavaAnalyzer`, and `TerraformAnalyzer` are the named per-language entry
+  points — `PythonAnalyzer` also carries a pluggable `DetectionRule[]`
+  tree-sitter path for detections Semgrep's pattern language can't express
+  (empty by default; see `rules/registry.ts`). `CompositeAnalyzer` combines
+  multiple engines for *one* language (e.g. Semgrep + tree-sitter rules for
+  Python); `MultiLanguageAnalyzer` dispatches per file extension across
+  *different* languages (e.g. Python + Java + Terraform) behind one
+  `CodeAnalyzer`. **To add a new
   language**: see "Adding a new language analyzer" below. **To add a new
   detection to an existing language**: add a `.yaml` file under
   `rules-semgrep/<language>/`.
@@ -231,7 +234,7 @@ and (for analyzer bugs) the offending code snippet.
   API for batch-workload timing recommendations
   (`packages/core/src/billing/`, `packages/core/src/carbon/`).
 - **Person B** — analyzer + detection rules, expanding the Semgrep rule packs
-  (`packages/core/rules-semgrep/`) and language coverage beyond Python/Java
+  (`packages/core/rules-semgrep/`) and language coverage beyond Python/Java/Terraform
   (`packages/core/src/analyzer/`).
 - **Person C** — dashboard + GitHub Action, the surfaces judges/users
   actually see (`packages/dashboard/`, `packages/github-action/`).

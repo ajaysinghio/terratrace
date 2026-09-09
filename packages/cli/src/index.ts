@@ -5,6 +5,7 @@ import fg from "fast-glob";
 import {
   PythonAnalyzer,
   JavaAnalyzer,
+  TerraformAnalyzer,
   SemgrepAnalyzer,
   CompositeAnalyzer,
   MultiLanguageAnalyzer,
@@ -79,15 +80,15 @@ async function buildAnalyzer(): Promise<CodeAnalyzer> {
   if (!semgrepAvailable) {
     console.error(
       "terratrace: semgrep not found on PATH — running with PythonAnalyzer only " +
-        "(Java has no detection without Semgrep). Install with `pip install semgrep` " +
-        "to enable the declarative rule packs for both languages.",
+        "(Java and Terraform have no detection without Semgrep). Install with " +
+        "`pip install semgrep` to enable the declarative rule packs for all languages.",
     );
     return new PythonAnalyzer();
   }
 
   console.error(
     "terratrace: semgrep detected — composing SemgrepAnalyzer + PythonAnalyzer for Python, " +
-      "JavaAnalyzer for Java.",
+      "JavaAnalyzer for Java, TerraformAnalyzer for Terraform.",
   );
   return new MultiLanguageAnalyzer([
     {
@@ -95,6 +96,7 @@ async function buildAnalyzer(): Promise<CodeAnalyzer> {
       analyzer: new CompositeAnalyzer([new SemgrepAnalyzer(), new PythonAnalyzer()], "python"),
     },
     { extensions: [".java"], analyzer: new JavaAnalyzer() },
+    { extensions: [".tf"], analyzer: new TerraformAnalyzer() },
   ]);
 }
 

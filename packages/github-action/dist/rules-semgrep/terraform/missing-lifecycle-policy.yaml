@@ -1,0 +1,32 @@
+# NOTE: like n-plus-one-query, this is a starting heuristic, not a precise detector.
+# It only checks whether the bucket resource itself declares an inline lifecycle_rule
+# (the AWS provider v3 idiom); it does not check whether a separate
+# aws_s3_bucket_lifecycle_configuration resource (the v4+ idiom) references this bucket
+# elsewhere in the config, so a correctly-configured v4-style bucket will false-positive
+# here until this rule gains cross-resource awareness.
+rules:
+  - id: missing-lifecycle-policy
+    languages: [terraform]
+    severity: WARNING
+    message: >-
+      This S3 bucket has no lifecycle rule, so objects accumulate (and keep being
+      billed and re-replicated) forever. Add a lifecycle_rule (or a separate
+      aws_s3_bucket_lifecycle_configuration) to expire or transition old objects
+      to a cheaper, lower-carbon storage class.
+    metadata:
+      category: performance
+      terratrace-lens: infra
+      terratrace-severity: medium
+    patterns:
+      - pattern: |
+          resource "aws_s3_bucket" "$NAME" {
+            ...
+          }
+      - pattern-not: |
+          resource "aws_s3_bucket" "$NAME" {
+            ...
+            lifecycle_rule {
+              ...
+            }
+            ...
+          }

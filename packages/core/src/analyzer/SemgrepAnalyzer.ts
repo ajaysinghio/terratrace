@@ -333,6 +333,9 @@ function extensionForLanguage(language: string): string {
       return ".java";
     case "ruby":
       return ".rb";
+    case "terraform":
+    case "hcl":
+      return ".tf";
     default:
       return ".txt";
   }

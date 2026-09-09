@@ -8,6 +8,9 @@ export const RULE_SERVICE_MAP: Record<string, string> = {
   "n-plus-one-query": "AmazonRDS",
   "unbounded-query": "AmazonRDS",
   "chatty-s3-loop": "AmazonS3",
+  "oversized-instance-type": "AmazonEC2",
+  "missing-lifecycle-policy": "AmazonS3",
+  "no-autoscaling-floor": "AmazonEC2",
 };
 
 /**

@@ -1,0 +1,23 @@
+rules:
+  - id: oversized-instance-type
+    languages: [terraform]
+    severity: WARNING
+    message: >-
+      This EC2 instance uses a large/xlarge-class instance type ($TYPE). Oversized
+      instances amplify both cost and carbon footprint when the workload doesn't
+      need that much capacity; right-size against real CPU/memory utilization, or
+      move variable load onto an Auto Scaling Group instead of a fixed large size.
+    metadata:
+      category: performance
+      terratrace-lens: infra
+      terratrace-severity: medium
+    patterns:
+      - pattern: |
+          resource "aws_instance" "$NAME" {
+            ...
+            instance_type = "$TYPE"
+            ...
+          }
+      - metavariable-regex:
+          metavariable: $TYPE
+          regex: ^[a-z0-9]+\.(4xlarge|8xlarge|9xlarge|12xlarge|16xlarge|18xlarge|24xlarge|32xlarge|metal)$

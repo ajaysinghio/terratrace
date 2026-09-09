@@ -1,0 +1,22 @@
+rules:
+  - id: no-autoscaling-floor
+    languages: [terraform]
+    severity: WARNING
+    message: >-
+      This Auto Scaling Group's min_size equals its max_size ($SIZE), so it can
+      never scale down — it runs $SIZE instances around the clock regardless of
+      load. Set a lower min_size (or a floor tied to real traffic) so idle
+      capacity isn't billed, and emitting carbon, 24/7.
+    metadata:
+      category: performance
+      terratrace-lens: infra
+      terratrace-severity: medium
+    patterns:
+      - pattern: |
+          resource "aws_autoscaling_group" "$NAME" {
+            ...
+            min_size = $SIZE
+            ...
+            max_size = $SIZE
+            ...
+          }

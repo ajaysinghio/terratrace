@@ -19,6 +19,7 @@ export interface SupportedLanguage {
 export const SUPPORTED_LANGUAGES: SupportedLanguage[] = [
   { id: "python", extensions: [".py"], glob: "**/*.py" },
   { id: "java", extensions: [".java"], glob: "**/*.java" },
+  { id: "terraform", extensions: [".tf"], glob: "**/*.tf" },
 ];
 
 /** fast-glob patterns for every supported language, for a repo-wide scan. */
