@@ -15,7 +15,9 @@ import {
   YAxis,
 } from "recharts";
 import { computeEquivalents } from "../lib/equivalents";
+import type { FixInProgress, Recommendation, ServiceImpact } from "../lib/roleStats";
 import { computeStats, SEVERITY_COLOR, type FileImpact } from "../lib/stats";
+import { ROLE_RANK, type Role } from "../lib/role";
 
 interface DashboardProps {
   findings: EnrichedFinding[];
@@ -23,6 +25,21 @@ interface DashboardProps {
    * to the label search page — where the GitHub Action's PR or advisory
    * Issue for that finding appears (they carry the matching label). */
   repoUrl?: string;
+  /**
+   * Gates which sections render — each role is a superset of the one
+   * before it (executive < manager < engineer), matching the project
+   * board's "Everything X sees, plus..." framing for issues #30/#31/#32.
+   */
+  role: Role;
+  /**
+   * Precomputed server-side (see ../lib/roleStats.ts) — these need
+   * RULE_SERVICE_MAP from @terratrace/core, which pulls in a native module
+   * that can't be bundled for the browser, so this client component only
+   * ever receives the already-computed, serializable result.
+   */
+  serviceBreakdown: ServiceImpact[];
+  recommendations: Recommendation[];
+  fixesInProgress: FixInProgress[];
 }
 
 function findingLabelUrl(repoUrl: string | undefined, idempotencyKey: string | undefined): string | undefined {
@@ -184,8 +201,83 @@ function EnvironmentalImpact({ totalKgCO2e }: { totalKgCO2e: number }) {
   );
 }
 
-export default function Dashboard({ findings, repoUrl }: DashboardProps) {
+export function ServiceBreakdownChart({ data }: { data: ServiceImpact[] }) {
+  if (data.length === 0) {
+    return <div className="empty-chart">No findings to chart.</div>;
+  }
+  return (
+    <ResponsiveContainer width="100%" height={Math.max(160, data.length * 42)}>
+      <BarChart data={data} layout="vertical" margin={{ left: 8, right: 16 }}>
+        <CartesianGrid strokeDasharray="3 3" stroke="#30363d" horizontal={false} />
+        <XAxis type="number" stroke="#8b949e" fontSize={12} />
+        <YAxis type="category" dataKey="service" stroke="#8b949e" fontSize={12} width={110} />
+        <Tooltip
+          contentStyle={{ background: "#161b22", border: "1px solid #30363d", borderRadius: 8 }}
+          formatter={(value, name) => [
+            name === "count" ? `${value} finding(s)` : `${Number(value).toFixed(4)} kgCO2e`,
+            name === "count" ? "Findings" : "Estimated emissions",
+          ]}
+        />
+        <Bar dataKey="count" fill="#58a6ff" radius={[0, 4, 4, 0]} />
+      </BarChart>
+    </ResponsiveContainer>
+  );
+}
+
+export function RecommendationsList({ recommendations }: { recommendations: Recommendation[] }) {
+  if (recommendations.length === 0) {
+    return <div className="empty-chart">No recommendations yet.</div>;
+  }
+  return (
+    <ul className="reco-list">
+      {recommendations.map((r) => (
+        <li key={r.ruleId} className="reco" style={{ borderLeftColor: SEVERITY_COLOR[r.severity] }}>
+          <div className="reco__header">
+            <span className="finding__rule">{r.ruleId}</span>
+            <span className="reco__count">
+              {r.count} occurrence{r.count === 1 ? "" : "s"} · {r.filePaths.length} file
+              {r.filePaths.length === 1 ? "" : "s"}
+              {r.totalKgCO2e > 0 && <> · {r.totalKgCO2e.toFixed(3)} kgCO2e</>}
+            </span>
+          </div>
+          <p className="finding__message">{r.message}</p>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+export function FixesInProgressList({ fixes, repoUrl }: { fixes: FixInProgress[]; repoUrl?: string }) {
+  if (fixes.length === 0) {
+    return <div className="empty-chart">No fixes tracked yet — findings need a validated fix run first.</div>;
+  }
+  return (
+    <ul className="fix-list">
+      {fixes.map((f) => {
+        const url = findingLabelUrl(repoUrl, f.idempotencyKey);
+        return (
+          <li key={f.idempotencyKey} className="fix">
+            <span className="finding__location">
+              {shortPath(f.filePath)}:{f.startLine}
+            </span>
+            <span className="finding__rule">{f.ruleId}</span>
+            {url ? (
+              <a href={url} target="_blank" rel="noopener noreferrer">
+                View on GitHub →
+              </a>
+            ) : (
+              <span className="fix__no-link">no repo URL to link to</span>
+            )}
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+export default function Dashboard({ findings, repoUrl, role, serviceBreakdown, recommendations, fixesInProgress }: DashboardProps) {
   const stats = computeStats(findings);
+  const rank = ROLE_RANK[role];
 
   return (
     <>
@@ -218,44 +310,76 @@ export default function Dashboard({ findings, repoUrl }: DashboardProps) {
           </div>
         </div>
 
-        <div className="card card--wide">
-          <h2>Impact heatmap by file</h2>
-          <p className="card__hint">
-            Box size = weighted severity impact, color = dominant severity in that file.
-          </p>
-          <FileHeatmap fileImpacts={stats.fileImpacts} />
-        </div>
-      </section>
-
-      {stats.hasCarbonEstimate && (
-        <section className="chart-grid">
-          <div className="card card--wide">
-            <h2>Carbon emissions by file</h2>
-            <p className="card__hint">
-              {stats.carbonMethodology === "ccf-derived" ? "CCF-derived" : stats.carbonMethodology} estimate,{" "}
-              <strong style={{ color: stats.carbonConfidence === "low" ? "#d29922" : undefined }}>
-                {stats.carbonConfidence} confidence
-              </strong>{" "}
-              — placeholder energy coefficients, not audit-grade (see carbonMath.ts).
-              {stats.avgGridIntensityGco2PerKwh && (
-                <> Avg. grid intensity used: {stats.avgGridIntensityGco2PerKwh.toFixed(0)} gCO2/kWh.</>
-              )}
-            </p>
-            <CarbonByFileChart stats={stats} />
-          </div>
-
+        {stats.hasCarbonEstimate && (
           <div className="card">
             <h2>Environmental impact, in context</h2>
             <p className="card__hint">Illustrative equivalents, not scientifically tied to the estimate above.</p>
             <EnvironmentalImpact totalKgCO2e={stats.totalKgCO2e!} />
           </div>
-        </section>
+        )}
+      </section>
+
+      {rank >= ROLE_RANK.manager && (
+        <>
+          <section className="chart-grid">
+            <div className="card">
+              <h2>Impact by service</h2>
+              <p className="card__hint">Which AWS service each rule's findings amplify.</p>
+              <ServiceBreakdownChart data={serviceBreakdown} />
+            </div>
+
+            {stats.hasCarbonEstimate && (
+              <div className="card card--wide">
+                <h2>Carbon emissions by file</h2>
+                <p className="card__hint">
+                  {stats.carbonMethodology === "ccf-derived" ? "CCF-derived" : stats.carbonMethodology} estimate,{" "}
+                  <strong style={{ color: stats.carbonConfidence === "low" ? "#d29922" : undefined }}>
+                    {stats.carbonConfidence} confidence
+                  </strong>{" "}
+                  — placeholder energy coefficients, not audit-grade (see carbonMath.ts).
+                  {stats.avgGridIntensityGco2PerKwh && (
+                    <> Avg. grid intensity used: {stats.avgGridIntensityGco2PerKwh.toFixed(0)} gCO2/kWh.</>
+                  )}
+                </p>
+                <CarbonByFileChart stats={stats} />
+              </div>
+            )}
+          </section>
+
+          <section className="chart-grid">
+            <div className="card">
+              <h2>Recommendations</h2>
+              <p className="card__hint">One entry per rule, highest carbon impact first.</p>
+              <RecommendationsList recommendations={recommendations} />
+            </div>
+
+            <div className="card card--wide">
+              <h2>Fixes in progress</h2>
+              <p className="card__hint">
+                Findings with a validated fix run — follow the link for the PR/advisory Issue's live status on GitHub.
+              </p>
+              <FixesInProgressList fixes={fixesInProgress} repoUrl={repoUrl} />
+            </div>
+          </section>
+        </>
       )}
 
-      <section className="card">
-        <h2>Findings</h2>
-        <ul className="findings-list">
-          {findings.map((finding, i) => (
+      {rank >= ROLE_RANK.engineer && (
+        <>
+          <section className="chart-grid">
+            <div className="card card--wide">
+              <h2>Impact heatmap by file</h2>
+              <p className="card__hint">
+                Box size = weighted severity impact, color = dominant severity in that file.
+              </p>
+              <FileHeatmap fileImpacts={stats.fileImpacts} />
+            </div>
+          </section>
+
+          <section className="card">
+            <h2>Findings</h2>
+            <ul className="findings-list">
+              {findings.map((finding, i) => (
             <li key={`${finding.id}:${finding.filePath}:${finding.startLine}:${i}`} className="finding" style={{ borderLeftColor: SEVERITY_COLOR[finding.severity] }}>
               <div className="finding__header">
                 <span
@@ -293,9 +417,11 @@ export default function Dashboard({ findings, repoUrl }: DashboardProps) {
                 ) : null;
               })()}
             </li>
-          ))}
-        </ul>
-      </section>
+              ))}
+            </ul>
+          </section>
+        </>
+      )}
     </>
   );
 }

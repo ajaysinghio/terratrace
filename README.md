@@ -63,7 +63,7 @@ terratrace/
     ├── core/          — shared types + CloudBillingSource / CodeAnalyzer / LLMProvider interfaces
     ├── cli/            — end-to-end scan pipeline (packages/cli/src/index.ts)
     ├── github-action/  — PR bot, bundled with ncc (packages/github-action/src/index.ts)
-    └── dashboard/      — Next.js app: project list (home) → per-project drill-down with charts/heatmap/carbon (packages/dashboard/src/app/)
+    └── dashboard/      — Next.js app: project list (home) → per-project drill-down, each with 3 role views (Executive/Middle Management/Engineer) via `?view=`, superset-gated (packages/dashboard/src/app/)
 ```
 
 See [CONTRIBUTING.md](./CONTRIBUTING.md) for the full source tree, the

@@ -9,6 +9,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./correlate": {
+      "types": "./dist/carbon/correlate.d.ts",
+      "default": "./dist/carbon/correlate.js"
     }
   },
   "files": [

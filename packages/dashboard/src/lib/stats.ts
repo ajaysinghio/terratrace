@@ -132,3 +132,4 @@ export function computeStats(findings: EnrichedFinding[]): DashboardStats {
       .sort((a, b) => b.count - a.count),
   };
 }
+
