@@ -219,9 +219,18 @@ pnpm dlx vercel --cwd packages/dashboard
 Notes:
 - Vercel's build needs pnpm workspace awareness — set the project's **Root
   Directory** to `packages/dashboard` and enable "Include files outside the
-  root directory" (or deploy from the repo root with a Vercel `installCommand`
-  of `pnpm install` and `buildCommand` of `pnpm --filter @terratrace/dashboard build`),
-  so `@terratrace/core` resolves via the workspace.
+  root directory", so `@terratrace/core` resolves via the workspace.
+- **Build order still matters on Vercel, same as locally** (see "Build order
+  matters" above) — with Root Directory set, Vercel's default Build Command
+  only runs `packages/dashboard`'s own `build` script, never
+  `@terratrace/core`'s. Since core hasn't been built, its `dist/` (and the
+  `"./correlate"` export subpath `lib/roleStats.ts` imports) doesn't exist,
+  and the build fails with a `Module not found: @terratrace/core/correlate`
+  error. Fix: in Project Settings → Build and Deployment, override the
+  **Build Command** to build core first:
+  ```
+  cd ../core && pnpm run build && cd ../dashboard && pnpm run build
+  ```
 - The dashboard currently reads every `scan-output/<project-id>.json` file
   from disk at request time (`packages/dashboard/src/lib/projects.ts`). For a
   remote deploy with 100s of repos, either sync each repo's scan output into
