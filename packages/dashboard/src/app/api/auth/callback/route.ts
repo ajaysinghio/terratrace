@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
 import { appUrl, GITHUB_REPO_NAME, GITHUB_REPO_OWNER, requireEnv } from "../../../../lib/authConfig";
 import { COOKIE_NAME, createSessionCookieValue } from "../../../../lib/session";
 
@@ -9,21 +10,15 @@ function clearOauthCookies(response: NextResponse) {
   response.cookies.delete("tt_redirect_to");
 }
 
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
   const url = new URL(request.url);
   const code = url.searchParams.get("code");
   const state = url.searchParams.get("state");
-  const cookieState = request.headers
-    .get("cookie")
-    ?.split("; ")
-    .find((c) => c.startsWith("tt_oauth_state="))
-    ?.split("=")[1];
-  const redirectTo =
-    request.headers
-      .get("cookie")
-      ?.split("; ")
-      .find((c) => c.startsWith("tt_redirect_to="))
-      ?.split("=")[1] ?? "/";
+  // NextRequest's cookie jar decodes percent-encoding (Next percent-encodes
+  // "/" etc. when it *sets* a cookie) — a raw `Cookie` header split on "="
+  // doesn't, and previously left redirectTo as the literal string "%2F".
+  const cookieState = request.cookies.get("tt_oauth_state")?.value;
+  const redirectTo = request.cookies.get("tt_redirect_to")?.value ?? "/";
 
   if (!code || !state || !cookieState || state !== cookieState) {
     const response = NextResponse.redirect(new URL("/access-denied?reason=state", appUrl()));
