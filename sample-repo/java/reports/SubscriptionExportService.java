@@ -1,5 +1,7 @@
 package reports;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import java.util.List;
 
 /**
@@ -14,7 +16,7 @@ public class SubscriptionExportService {
         this.subscriptionRepository = subscriptionRepository;
     }
 
-    public List<Subscription> exportAllSubscriptions() {
-        return subscriptionRepository.findAll();
+    public Page<Subscription> exportAllSubscriptions(Pageable pageable) {
+        return subscriptionRepository.findAll(pageable);
     }
 }
