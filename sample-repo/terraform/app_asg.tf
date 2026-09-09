@@ -3,7 +3,7 @@
 # the `aws_autoscaling_group` resource below.
 resource "aws_autoscaling_group" "app" {
   name                = "app-asg"
-  min_size            = 6
+  min_size            = 2
   max_size            = 6
   desired_capacity    = 6
   vpc_zone_identifier = ["subnet-abc"]
