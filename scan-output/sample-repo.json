@@ -1,0 +1,191 @@
+{
+  "project": {
+    "id": "sample-repo",
+    "name": "Sample Repo",
+    "repoUrl": "https://github.com/ajaysinghio/terratrace",
+    "scannedAt": "2026-09-09T09:21:56.084Z"
+  },
+  "findings": [
+    {
+      "id": "5d86b0163069ca3b",
+      "ruleId": "n-plus-one-query",
+      "severity": "medium",
+      "filePath": "./sample-repo/analytics/reports.py",
+      "startLine": 13,
+      "endLine": 15,
+      "snippet": "    for session in sessions:\n        events = Event.objects.filter(session_id=session.id)\n        counts[session.id] = len(events)",
+      "message": "This loop appears to issue a database call on every iteration (N+1 query pattern). Each iteration adds its own round-trip cost and carbon overhead; batch it into a single query (e.g. Django's prefetch_related/select_related, or an equivalent bulk fetch/IN query) before the loop instead.",
+      "estimate": {
+        "kgCO2e": 0.10279494104999999,
+        "methodology": "ccf-derived",
+        "gridIntensityGco2PerKwh": 334.13846153846157,
+        "confidence": "medium",
+        "costUsd": 36.48428571428572
+      },
+      "idempotencyKey": "7e3f72d1afc3"
+    },
+    {
+      "id": "33011f3cd7d45578",
+      "ruleId": "n-plus-one-query",
+      "severity": "medium",
+      "filePath": "./sample-repo/orders/views.py",
+      "startLine": 16,
+      "endLine": 18,
+      "snippet": "    for customer in customers:\n        orders = Order.objects.filter(customer_id=customer.id)\n        totals[customer.id] = sum(order.amount for order in orders)",
+      "message": "This loop appears to issue a database call on every iteration (N+1 query pattern). Each iteration adds its own round-trip cost and carbon overhead; batch it into a single query (e.g. Django's prefetch_related/select_related, or an equivalent bulk fetch/IN query) before the loop instead.",
+      "estimate": {
+        "kgCO2e": 0.10279494104999999,
+        "methodology": "ccf-derived",
+        "gridIntensityGco2PerKwh": 334.13846153846157,
+        "confidence": "medium",
+        "costUsd": 36.48428571428572
+      },
+      "idempotencyKey": "cead06d33ae9"
+    },
+    {
+      "id": "31e816ab1f5f904d",
+      "ruleId": "unbounded-query",
+      "severity": "medium",
+      "filePath": "./sample-repo/reports/subscription_export.py",
+      "startLine": 11,
+      "endLine": 11,
+      "snippet": "    return list(Subscription.objects.all())",
+      "message": "This materializes an entire queryset into memory in one call instead of paginating or streaming it. For large tables this multiplies both the RDS read cost and the carbon footprint of a single request; use `.iterator()`, cursor-based pagination, or an explicit `.filter()`/slice instead of pulling every row at once.",
+      "estimate": {
+        "kgCO2e": 0.10279494104999999,
+        "methodology": "ccf-derived",
+        "gridIntensityGco2PerKwh": 334.13846153846157,
+        "confidence": "medium",
+        "costUsd": 36.48428571428572
+      },
+      "idempotencyKey": "d2e58e3d3f7f"
+    },
+    {
+      "id": "eae17c4a44aa7fcd",
+      "ruleId": "chatty-s3-loop",
+      "severity": "medium",
+      "filePath": "./sample-repo/storage/s3_sync.py",
+      "startLine": 18,
+      "endLine": 21,
+      "snippet": "    for upload in pending:\n        response = s3.get_object(Bucket=bucket, Key=upload.key)\n        if response[\"ContentLength\"] > 0:\n            synced_keys.append(upload.key)",
+      "message": "This loop issues a separate S3 API call on every iteration instead of batching. Each call is its own billed request plus network round-trip; prefer a batch/bulk API (e.g. `list_objects_v2` with pagination done once outside the loop, or `download_fileobj`/`upload_fileobj` concurrency) over calling S3 once per item.",
+      "idempotencyKey": "daa8d62c8a3d"
+    },
+    {
+      "id": "fb1907dfa7cc585d",
+      "ruleId": "no-autoscaling-floor",
+      "severity": "medium",
+      "filePath": "./sample-repo/terraform/app_asg.tf",
+      "startLine": 4,
+      "endLine": 10,
+      "snippet": "resource \"aws_autoscaling_group\" \"app\" {\n  name                = \"app-asg\"\n  min_size            = 6\n  max_size            = 6\n  desired_capacity    = 6\n  vpc_zone_identifier = [\"subnet-abc\"]\n}",
+      "message": "This Auto Scaling Group's min_size equals its max_size (6), so it can never scale down — it runs 6 instances around the clock regardless of load. Set a lower min_size (or a floor tied to real traffic) so idle capacity isn't billed, and emitting carbon, 24/7.",
+      "idempotencyKey": "5fdbec0f5f2f"
+    },
+    {
+      "id": "7508afd60d159577",
+      "ruleId": "missing-lifecycle-policy",
+      "severity": "medium",
+      "filePath": "./sample-repo/terraform/logs_bucket.tf",
+      "startLine": 4,
+      "endLine": 6,
+      "snippet": "resource \"aws_s3_bucket\" \"logs\" {\n  bucket = \"terratrace-sample-logs\"\n}",
+      "message": "This S3 bucket has no lifecycle rule, so objects accumulate (and keep being billed and re-replicated) forever. Add a lifecycle_rule (or a separate aws_s3_bucket_lifecycle_configuration) to expire or transition old objects to a cheaper, lower-carbon storage class.",
+      "idempotencyKey": "a1214c9d9719"
+    },
+    {
+      "id": "1ae9a6eebc9a8ea9",
+      "ruleId": "oversized-instance-type",
+      "severity": "medium",
+      "filePath": "./sample-repo/terraform/web_instance.tf",
+      "startLine": 4,
+      "endLine": 11,
+      "snippet": "resource \"aws_instance\" \"web\" {\n  ami           = \"ami-0abcdef1234567890\"\n  instance_type = \"m5.4xlarge\"\n\n  tags = {\n    Name = \"web\"\n  }\n}",
+      "message": "This EC2 instance uses a large/xlarge-class instance type (m5.4xlarge). Oversized instances amplify both cost and carbon footprint when the workload doesn't need that much capacity; right-size against real CPU/memory utilization, or move variable load onto an Auto Scaling Group instead of a fixed large size.",
+      "idempotencyKey": "341478cba418"
+    },
+    {
+      "id": "5cd05b54c08d76a1",
+      "ruleId": "n-plus-one-query",
+      "severity": "medium",
+      "filePath": "./sample-repo/billing/reports.py",
+      "startLine": 13,
+      "endLine": 15,
+      "snippet": "    for subscription in subscriptions:\n        invoices = Invoice.objects.filter(subscription_id=subscription.id)\n        revenue[subscription.id] = sum(invoice.total for invoice in invoices)",
+      "message": "This loop appears to issue a database call on every iteration (N+1 query pattern). Each iteration adds its own round-trip cost and carbon overhead; batch it into a single query (e.g. Django's prefetch_related/select_related, or an equivalent bulk fetch/IN query) before the loop instead.",
+      "estimate": {
+        "kgCO2e": 0.10279494104999999,
+        "methodology": "ccf-derived",
+        "gridIntensityGco2PerKwh": 334.13846153846157,
+        "confidence": "medium",
+        "costUsd": 36.48428571428572
+      },
+      "idempotencyKey": "9a1c64baddb4"
+    },
+    {
+      "id": "77f241cf61db2cb9",
+      "ruleId": "n-plus-one-query",
+      "severity": "medium",
+      "filePath": "./sample-repo/billing/reports.py",
+      "startLine": 29,
+      "endLine": 32,
+      "snippet": "    for subscription in subscriptions:\n        overdue = Invoice.objects.get(subscription_id=subscription.id, status=\"overdue\")\n        if overdue:\n            overdue_ids.append(subscription.id)",
+      "message": "This loop appears to issue a database call on every iteration (N+1 query pattern). Each iteration adds its own round-trip cost and carbon overhead; batch it into a single query (e.g. Django's prefetch_related/select_related, or an equivalent bulk fetch/IN query) before the loop instead.",
+      "estimate": {
+        "kgCO2e": 0.10279494104999999,
+        "methodology": "ccf-derived",
+        "gridIntensityGco2PerKwh": 334.13846153846157,
+        "confidence": "medium",
+        "costUsd": 36.48428571428572
+      },
+      "idempotencyKey": "58169d10a7ac"
+    },
+    {
+      "id": "b41414dc77aeaf46",
+      "ruleId": "n-plus-one-query",
+      "severity": "medium",
+      "filePath": "./sample-repo/java/orders/OrderService.java",
+      "startLine": 19,
+      "endLine": 22,
+      "snippet": "        for (Long customerId : customerIds) {\n            Order order = orderRepository.findById(customerId);\n            total += order.getAmount();\n        }",
+      "message": "This loop appears to issue a database call on every iteration (N+1 query pattern). Each iteration adds its own round-trip cost and carbon overhead; batch it into a single query (e.g. a Spring Data `findAllById`/derived `IN` query, or a JPQL/Criteria fetch join) before the loop instead.",
+      "estimate": {
+        "kgCO2e": 0.10279494104999999,
+        "methodology": "ccf-derived",
+        "gridIntensityGco2PerKwh": 334.13846153846157,
+        "confidence": "medium",
+        "costUsd": 36.48428571428572
+      },
+      "idempotencyKey": "2060f0edc3b2"
+    },
+    {
+      "id": "c7323af3af0f0490",
+      "ruleId": "unbounded-query",
+      "severity": "medium",
+      "filePath": "./sample-repo/java/reports/SubscriptionExportService.java",
+      "startLine": 18,
+      "endLine": 18,
+      "snippet": "        return subscriptionRepository.findAll();",
+      "message": "subscriptionRepository.findAll() with no Pageable fetches every row in the table into memory in one call instead of paginating or streaming it. For large tables this multiplies both the RDS read cost and the carbon footprint of a single request; use a paginated `findAll(Pageable)`/`Page<T>` query or a bounded derived query instead.",
+      "estimate": {
+        "kgCO2e": 0.10279494104999999,
+        "methodology": "ccf-derived",
+        "gridIntensityGco2PerKwh": 334.13846153846157,
+        "confidence": "medium",
+        "costUsd": 36.48428571428572
+      },
+      "idempotencyKey": "466069add7d1"
+    },
+    {
+      "id": "cf5c57d995436269",
+      "ruleId": "chatty-s3-loop",
+      "severity": "medium",
+      "filePath": "./sample-repo/java/storage/S3Sync.java",
+      "startLine": 22,
+      "endLine": 25,
+      "snippet": "        for (String key : keys) {\n            var request = GetObjectRequest.builder().bucket(bucket).key(key).build();\n            s3Client.getObject(request);\n        }",
+      "message": "This loop issues a separate S3 API call on every iteration instead of batching. Each call is its own billed request plus network round-trip; prefer a batch/bulk API (e.g. paginating a listing once outside the loop, or the SDK's transfer manager for bulk get/put) over calling S3 once per item.",
+      "idempotencyKey": "2daf0f74d2ba"
+    }
+  ]
+}

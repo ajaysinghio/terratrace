@@ -38,6 +38,11 @@ export default async function ProjectPage({
           {data.project.scannedAt && ` · scanned ${new Date(data.project.scannedAt).toLocaleString()}`}
         </p>
         <RoleTabs active={role} />
+        {process.env.GITHUB_OAUTH_CLIENT_ID && (
+          <a href="/api/auth/logout" className="back-link">
+            Sign out
+          </a>
+        )}
       </header>
       <Dashboard
         findings={data.findings}

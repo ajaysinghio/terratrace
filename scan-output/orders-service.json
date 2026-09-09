@@ -1,0 +1,73 @@
+{
+  "project": {
+    "id": "orders-service",
+    "name": "Orders Service",
+    "scannedAt": "2026-08-31T11:36:45.120Z"
+  },
+  "findings": [
+    {
+      "id": "0e908535-9d1b-4612-927b-ff5520670c54",
+      "ruleId": "n-plus-one-query",
+      "severity": "high",
+      "filePath": "./sample-repo/billing/reports.py",
+      "startLine": 13,
+      "endLine": 15,
+      "snippet": "for subscription in subscriptions:\n        invoices = Invoice.objects.filter(subscription_id=subscription.id)\n        revenue[subscription.id] = sum(invoice.total for invoice in invoices)",
+      "message": "This loop appears to issue a database call on every iteration (N+1 query pattern). Each iteration adds its own round-trip cost and carbon overhead; batch it into a single query (e.g. Django's prefetch_related/select_related, or an equivalent bulk fetch/IN query) before the loop instead.",
+      "estimate": {
+        "kgCO2e": 0,
+        "methodology": "ccf-derived",
+        "gridIntensityGco2PerKwh": 400,
+        "confidence": "low"
+      }
+    },
+    {
+      "id": "2f3ba750-0bf5-497d-9397-e1805f609310",
+      "ruleId": "n-plus-one-query",
+      "severity": "high",
+      "filePath": "./sample-repo/billing/reports.py",
+      "startLine": 29,
+      "endLine": 32,
+      "snippet": "for subscription in subscriptions:\n        overdue = Invoice.objects.get(subscription_id=subscription.id, status=\"overdue\")\n        if overdue:\n            overdue_ids.append(subscription.id)",
+      "message": "This loop appears to issue a database call on every iteration (N+1 query pattern). Each iteration adds its own round-trip cost and carbon overhead; batch it into a single query (e.g. Django's prefetch_related/select_related, or an equivalent bulk fetch/IN query) before the loop instead.",
+      "estimate": {
+        "kgCO2e": 0,
+        "methodology": "ccf-derived",
+        "gridIntensityGco2PerKwh": 400,
+        "confidence": "low"
+      }
+    },
+    {
+      "id": "721e02b0-8018-4878-8742-131d6fddf616",
+      "ruleId": "n-plus-one-query",
+      "severity": "high",
+      "filePath": "./sample-repo/orders/views.py",
+      "startLine": 16,
+      "endLine": 18,
+      "snippet": "for customer in customers:\n        orders = Order.objects.filter(customer_id=customer.id)\n        totals[customer.id] = sum(order.amount for order in orders)",
+      "message": "This loop appears to issue a database call on every iteration (N+1 query pattern). Each iteration adds its own round-trip cost and carbon overhead; batch it into a single query (e.g. Django's prefetch_related/select_related, or an equivalent bulk fetch/IN query) before the loop instead.",
+      "estimate": {
+        "kgCO2e": 0,
+        "methodology": "ccf-derived",
+        "gridIntensityGco2PerKwh": 400,
+        "confidence": "low"
+      }
+    },
+    {
+      "id": "4c9a3f3d-6309-496b-8845-1700058ed735",
+      "ruleId": "n-plus-one-query",
+      "severity": "high",
+      "filePath": "./sample-repo/analytics/reports.py",
+      "startLine": 13,
+      "endLine": 15,
+      "snippet": "for session in sessions:\n        events = Event.objects.filter(session_id=session.id)\n        counts[session.id] = len(events)",
+      "message": "This loop appears to issue a database call on every iteration (N+1 query pattern). Each iteration adds its own round-trip cost and carbon overhead; batch it into a single query (e.g. Django's prefetch_related/select_related, or an equivalent bulk fetch/IN query) before the loop instead.",
+      "estimate": {
+        "kgCO2e": 0,
+        "methodology": "ccf-derived",
+        "gridIntensityGco2PerKwh": 400,
+        "confidence": "low"
+      }
+    }
+  ]
+}

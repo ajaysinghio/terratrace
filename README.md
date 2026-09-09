@@ -228,8 +228,31 @@ Notes:
   `scan-output/` as part of your build/deploy step, or swap `projects.ts` for
   a real findings store (S3, a database, etc.) that CI writes to and the
   dashboard reads from — the directory-of-JSON-files read is a placeholder.
-- No environment variables are required by the dashboard itself today, since
-  it only reads local JSON files.
+- Two demo snapshots (`scan-output/sample-repo.json`, `scan-output/orders-service.json`)
+  are tracked in git specifically so a fresh deploy has data to show — see the
+  `.gitignore` comment above the allow-list entries. Anything else written to
+  `scan-output/` locally stays untracked.
+
+**Restricting access to repo collaborators** — since the repo backing this
+deploy is private, "authorized users" means "has at least read access to the
+repo." There's no way to enforce that with GitHub Pages' access model (private
+Pages sites require GitHub Enterprise); this app instead gates itself with a
+small GitHub OAuth flow (see `src/proxy.ts`, `src/app/api/auth/*`):
+
+1. GitHub → Settings → Developer settings → OAuth Apps → New OAuth App.
+   Set **Authorization callback URL** to `<your-vercel-url>/api/auth/callback`.
+2. In the Vercel project's environment variables, set:
+   - `GITHUB_OAUTH_CLIENT_ID`, `GITHUB_OAUTH_CLIENT_SECRET` — from step 1.
+   - `AUTH_COOKIE_SECRET` — a random secret, e.g. `openssl rand -base64 32`.
+   - `APP_URL` — the deploy's public URL (must exactly match the callback URL's origin).
+   - `GITHUB_REPO_OWNER` / `GITHUB_REPO_NAME` — defaults to `ajaysinghio`/`terratrace`; only set these if forking to a different repo.
+3. Leave all of the above unset for local dev — `pnpm dev:dashboard` skips the
+   gate entirely when `GITHUB_OAUTH_CLIENT_ID` isn't present.
+
+The OAuth App requests the `repo` scope (needed to check collaborator access
+on a *private* repo — GitHub has no narrower read-only scope for that check)
+and is used only to read `GET /repos/{owner}/{repo}` for the signed-in user;
+nothing is written back to GitHub with it.
 
 ### GitHub Action — build and publish
 

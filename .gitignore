@@ -7,7 +7,16 @@ packages/github-action/lib/
 .next/
 .env
 scan-output.json
-scan-output/
+# A parent-directory ignore (`scan-output/`) can't be un-ignored per-file, so
+# this ignores the directory's contents instead of the directory itself,
+# leaving room for the allow-list below. The Vercel deploy has no CI step
+# writing fresh scan-output at build time, so these two demo snapshots are
+# tracked deliberately as the seed data a fresh clone/deploy shows — see
+# README's remote-deploy notes. Everything else a local `pnpm dev:dashboard`
+# run writes to scan-output/ stays ignored.
+scan-output/*
+!scan-output/sample-repo.json
+!scan-output/orders-service.json
 *.log
 .turbo/
 *.tsbuildinfo

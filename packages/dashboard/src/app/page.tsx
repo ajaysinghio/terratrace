@@ -73,6 +73,11 @@ export default async function HomePage({
             ` · ${Math.round((orgTotals.fixed / orgTotals.findings) * 100)}% remediation progress`}
         </p>
         <RoleTabs active={role} />
+        {process.env.GITHUB_OAUTH_CLIENT_ID && (
+          <a href="/api/auth/logout" className="back-link">
+            Sign out
+          </a>
+        )}
       </header>
 
       {ROLE_RANK[role] >= ROLE_RANK.manager && (
