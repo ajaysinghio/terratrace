@@ -31,6 +31,7 @@
     "@aws-sdk/client-s3": "^3.1124.0",
     "ai": "^7.0.73",
     "diff": "^5.2.0",
+    "parse-hcl": "^1.0.2",
     "tree-sitter": "^0.25.1",
     "tree-sitter-python": "^0.25.0"
   },

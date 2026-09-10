@@ -107,6 +107,42 @@ export interface EnrichedFinding extends CodeFinding {
   idempotencyKey?: string;
 }
 
+/** A cloud resource declared in infrastructure-as-code, before it's ever been billed. */
+export interface InfraResource {
+  provider: CloudProvider;
+  /** e.g. "aws_instance", "aws_db_instance" — the IaC tool's own resource type name. */
+  resourceType: string;
+  /** e.g. "aws_instance.web" — "<resourceType>.<name>", Terraform's own addressing scheme. */
+  resourceAddress: string;
+  /** e.g. "r5.2xlarge", "db.m5.4xlarge" — read verbatim from the declared config. */
+  instanceType: string;
+  region: string;
+  /**
+   * Declared tags. The only way to correlate a statically-declared resource
+   * with a live recommendation for it (Compute Optimizer keys recommendations
+   * by AWS resource ARN, which doesn't exist until after `terraform apply`
+   * and isn't derivable from a .tf file alone without also reading
+   * terraform.tfstate) — matching on a shared tag value is the honest
+   * fallback used here instead.
+   */
+  tags?: Record<string, string>;
+  filePath: string;
+  startLine: number;
+  endLine: number;
+}
+
+/** AWS Compute Optimizer's own finding classification, verbatim. */
+export type RightsizingFinding = "Optimized" | "NotOptimized" | "Overprovisioned" | "Underprovisioned";
+
+/** A normalized rightsizing recommendation, regardless of which cloud/resource-type API produced it. */
+export interface RightsizingRecommendation {
+  resourceArn: string;
+  currentInstanceType: string;
+  recommendedInstanceType: string;
+  finding: RightsizingFinding;
+  tags?: Record<string, string>;
+}
+
 export type ValidationFailureReason =
   | "diff-did-not-apply"
   | "finding-persists"

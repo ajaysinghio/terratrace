@@ -19,7 +19,13 @@ export * from "./llm/AnthropicProvider.js";
 
 export * from "./carbon/carbonMath.js";
 export * from "./carbon/correlate.js";
+ export * from "./carbon/correlateInfra.js";
 export * from "./carbon/energyModel.js";
 export * from "./carbon/coefficients/index.js";
+
+export * from "./infra/InfraAnalyzer.js";
+export * from "./infra/TerraformHclAnalyzer.js";
+export * from "./infra/RightsizingSource.js";
+export * from "./infra/RightsizingFileSource.js";
 
 export * from "./recommend/recommendFinding.js";

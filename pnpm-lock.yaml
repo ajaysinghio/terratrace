@@ -54,6 +54,9 @@ importers:
       diff:
         specifier: ^5.2.0
         version: 5.2.2
+      parse-hcl:
+        specifier: ^1.0.2
+        version: 1.0.2
       tree-sitter:
         specifier: ^0.25.1
         version: 0.25.1
@@ -677,6 +680,7 @@ packages:
   '@smithy/node-http-handler@4.12.0':
     resolution: {integrity: sha512-0mq1pHadfyXCYCqm2cNpbjNIT+fbaUpNxewZb/YNr2L0IrEVMOb8gM/Fl4K6XvHCW3uSNDFwPl/+iKm0bx9jYg==}
     engines: {node: '>=18.0.0'}
+    deprecated: Depreacted due to a memory leak issue https://github.com/smithy-lang/smithy-typescript/issues/2258
 
   '@smithy/signature-v4@5.7.2':
     resolution: {integrity: sha512-P7Ki6px6OOrxVtx8K7nLmyx4SlXUW/uTKDdMG44UHefmPGSRMBKe2v+TM59WdLcpUIrBrnuCsIqiM2MbsZjmhw==}
@@ -1208,6 +1212,11 @@ packages:
   obug@2.1.4:
     resolution: {integrity: sha512-4a+OsYv9UktOJKE+l1A4OufDgdRF9PifWj+tJnHURo/P+WOxpG4GzUFL9qCalmWauao6ogiG+QvnCovwPoyAWA==}
     engines: {node: '>=12.20.0'}
+
+  parse-hcl@1.0.2:
+    resolution: {integrity: sha512-9tpy9I04t6IHCwLNXw8slOWdjf72480FBvzfrBR+l+rNItkuoSGcG6F/2a+6c4yajHYAyL83YWDy0lPjxWe3mA==}
+    engines: {node: '>=18'}
+    hasBin: true
 
   pathe@2.0.3:
     resolution: {integrity: sha512-WUjGcAqP1gQacoQe+OBJsFA7Ld4DyXuUIjZ5cc75cLHvJ7dtNsTugphxIADwspS+AraAUePCKrSVtPLFj/F88w==}
@@ -2429,6 +2438,8 @@ snapshots:
   node-gyp-build@4.8.4: {}
 
   obug@2.1.4: {}
+
+  parse-hcl@1.0.2: {}
 
   pathe@2.0.3: {}
 

@@ -1,0 +1,33 @@
+{
+  "instanceRecommendations": [
+    {
+      "accountId": "111122223333",
+      "instanceArn": "arn:aws:ec2:us-east-1:111122223333:instance/i-0abc123def456789",
+      "currentInstanceType": "m5.4xlarge",
+      "finding": "Overprovisioned",
+      "findingReasonCodes": ["CPUOverprovisioned", "MemoryOverprovisioned"],
+      "recommendationOptions": [
+        { "instanceType": "m6i.large", "rank": 1 },
+        { "instanceType": "m6i.xlarge", "rank": 2 }
+      ],
+      "tags": [
+        { "key": "Name", "value": "web" }
+      ]
+    }
+  ],
+  "rdsDBRecommendations": [
+    {
+      "accountId": "111122223333",
+      "resourceArn": "arn:aws:rds:us-east-1:111122223333:db:orders-db",
+      "currentDBInstanceClass": "db.t3.medium",
+      "instanceFinding": "Overprovisioned",
+      "instanceFindingReasonCodes": ["CPUOverprovisioned"],
+      "instanceRecommendationOptions": [
+        { "dbInstanceClass": "db.t3.small", "rank": 1 }
+      ],
+      "tags": [
+        { "key": "Name", "value": "orders-db" }
+      ]
+    }
+  ]
+}

@@ -54,12 +54,20 @@ function watts(family: FamilyWatts, cpuUtil: number): number {
 
 function extractEc2Family(record: UsageRecord): string {
   // Prefer resourceId (populated by CUR / by CSV rows that carry
-  // instance-type). Fall back to usageUnit and to a family-average. Also
-  // matches RDS-style types ("db.t3.medium") since the regex just looks
-  // for the family.size pattern anywhere in the string.
+  // instance-type). Fall back to usageUnit and to a family-average.
+  //
+  // Instance-type strings are always "<family>.<size>" (e.g. "m5.large",
+  // "m6i.large") or, for RDS/ElastiCache, "<prefix>.<family>.<size>" (e.g.
+  // "db.t3.medium") — so the family is always the second-to-last
+  // dot-separated segment. A previous regex-based extraction
+  // (/([a-z]+\d)[a-z]*\./i) silently dropped any letter suffix after the
+  // generation digit, so "m6i"/"c6i"/"r6i" were captured as "m6"/"c6"/"r6"
+  // and could never match their own EC2_WATTS_BY_FAMILY entries — those
+  // newer-generation families were silently falling back to
+  // EC2_AVG_WATTS on every estimate.
   const source = record.resourceId ?? record.usageUnit ?? "";
-  const match = source.match(/([a-z]+\d)[a-z]*\./i);
-  return match?.[1]?.toLowerCase() ?? "";
+  const parts = source.split(".");
+  return parts.length >= 2 ? parts[parts.length - 2].toLowerCase() : "";
 }
 
 function estimateEc2Kwh(record: UsageRecord): number {

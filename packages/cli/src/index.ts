@@ -6,6 +6,8 @@ import {
   PythonAnalyzer,
   JavaAnalyzer,
   TerraformAnalyzer,
+  TerraformHclAnalyzer,
+  RightsizingFileSource,
   SemgrepAnalyzer,
   CompositeAnalyzer,
   MultiLanguageAnalyzer,
@@ -15,6 +17,7 @@ import {
   AWSCurS3Source,
   computeIdempotencyKey,
   correlateFindingsWithUsage,
+  correlateComputeOptimizerFindings,
   recommendFinding,
   RULE_SERVICE_MAP,
   type CarbonEstimate,
@@ -22,6 +25,7 @@ import {
   type CodeAnalyzer,
   type CodeFinding,
   type EnrichedFinding,
+  type InfraResource,
   type UsageRecord,
 } from "@terratrace/core";
 import { sampleUsageRecords } from "./sampleUsage.js";
@@ -135,6 +139,42 @@ async function main(): Promise<void> {
   const allFindings = Array.from(findingsByFile.values()).flat();
   const usageRecords = await loadUsageRecords();
   const estimateByFindingId = correlateFindingsWithUsage(allFindings, usageRecords);
+
+  // Optional: cross-reference every declared aws_instance/aws_db_instance
+  // against a real (or sample) AWS Compute Optimizer export. Only runs when
+  // configured — falls back to TerraformAnalyzer's static Semgrep rules
+  // alone (already in allFindings above) when it isn't.
+  const rightsizingFilePath = process.env.TERRATRACE_RIGHTSIZING_FILE;
+  if (rightsizingFilePath) {
+    try {
+      const hclAnalyzer = new TerraformHclAnalyzer();
+      const infraResources: InfraResource[] = [];
+      for (const filePath of files) {
+        if (!filePath.endsWith(".tf")) continue;
+        const sourceCode = sourceByFile.get(filePath);
+        if (sourceCode) infraResources.push(...(await hclAnalyzer.parseFile(filePath, sourceCode)));
+      }
+
+      const recommendations = await new RightsizingFileSource(rightsizingFilePath).fetchRecommendations();
+      const { findings: computeOptimizerFindings, estimates } = correlateComputeOptimizerFindings(
+        infraResources,
+        recommendations,
+      );
+
+      allFindings.push(...computeOptimizerFindings);
+      for (const [id, estimate] of estimates) estimateByFindingId.set(id, estimate);
+
+      console.error(
+        `terratrace: Compute Optimizer cross-reference found ${computeOptimizerFindings.length} ` +
+          `overprovisioned resource(s) across ${infraResources.length} declared aws_instance/aws_db_instance resource(s).`,
+      );
+    } catch (error) {
+      console.error(
+        `terratrace: Compute Optimizer cross-reference failed, falling back to static Terraform rules only.`,
+        error instanceof Error ? error.message : error,
+      );
+    }
+  }
 
   const enrichedFindings: EnrichedFinding[] = [];
   let recommendationsValidated = 0;

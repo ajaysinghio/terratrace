@@ -20,3 +20,6 @@ scan-output/*
 *.log
 .turbo/
 *.tsbuildinfo
+# parse-hcl writes this default output file to cwd on every invocation
+# regardless of --stdout — harmless, but shouldn't be tracked.
+parse-hcl-output.json
