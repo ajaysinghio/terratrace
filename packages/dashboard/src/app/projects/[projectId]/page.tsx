@@ -1,18 +1,18 @@
-import Link from "next/link";
 import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
-import Dashboard from "../../../components/Dashboard";
-import AccountMenu from "../../../components/AccountMenu";
+import { OverviewSection } from "../../../components/Dashboard";
+import ProjectShell from "../../../components/ProjectShell";
 import { parseRole } from "../../../lib/role";
 import { loadProject } from "../../../lib/projects";
-import { computeFixesInProgress, computeRecommendations, computeServiceBreakdown } from "../../../lib/roleStats";
+import { computeRecommendations, computeServiceBreakdown } from "../../../lib/roleStats";
+import { computeStats } from "../../../lib/stats";
 import { COOKIE_NAME, verifySessionCookieValue } from "../../../lib/session";
 
-// See the note on the dashboard page (../../dashboard/page.tsx) — force
-// per-request reads of scan-output/ rather than a build-time snapshot.
+// Forces per-request reads of scan-output/ rather than a build-time
+// snapshot — see the note on the org-wide dashboard page for why.
 export const dynamic = "force-dynamic";
 
-export default async function ProjectPage({
+export default async function ProjectOverviewPage({
   params,
   searchParams,
 }: {
@@ -32,26 +32,21 @@ export default async function ProjectPage({
   }
 
   return (
-    <div className="dashboard">
-      <header className="dashboard__header">
-        <Link href="/dashboard" className="back-link">
-          ← All projects
-        </Link>
-        <h1>{data.project.name}</h1>
-        <p>
-          {data.project.repoUrl ?? data.project.id}
-          {data.project.scannedAt && ` · scanned ${new Date(data.project.scannedAt).toLocaleString()}`}
-        </p>
-      </header>
-      <AccountMenu role={role} login={session?.login} />
-      <Dashboard
-        findings={data.findings}
-        repoUrl={data.project.repoUrl}
+    <ProjectShell
+      projectId={projectId}
+      projectName={data.project.name}
+      repoUrl={data.project.repoUrl}
+      scannedAt={data.project.scannedAt}
+      role={role}
+      login={session?.login}
+    >
+      <OverviewSection
+        projectId={projectId}
         role={role}
+        stats={computeStats(data.findings)}
         serviceBreakdown={computeServiceBreakdown(data.findings)}
         recommendations={computeRecommendations(data.findings)}
-        fixesInProgress={computeFixesInProgress(data.findings)}
       />
-    </div>
+    </ProjectShell>
   );
 }

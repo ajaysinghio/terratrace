@@ -17,6 +17,7 @@ scan-output.json
 scan-output/*
 !scan-output/sample-repo.json
 !scan-output/orders-service.json
+!scan-output/infra.json
 *.log
 .turbo/
 *.tsbuildinfo

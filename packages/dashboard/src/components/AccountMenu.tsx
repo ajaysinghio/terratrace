@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { ROLES, type Role } from "../lib/role";
+import { clearThemeOverride, defaultThemeForRole, readThemeOverride, writeThemeOverride, type Theme } from "../lib/theme";
 
 interface AccountMenuProps {
   role: Role;
@@ -10,10 +11,23 @@ interface AccountMenuProps {
    * configured) — the menu still works for switching roles, it just skips
    * the identity/sign-out section. */
   login?: string;
+  /**
+   * Where a role switch navigates to, instead of re-applying `?view=` to the
+   * current pathname. Needed on a project's manager/engineer-only section
+   * routes (e.g. /projects/x/domain) — switching down to Executive there
+   * should land on the project's Overview page, not leave an executive
+   * looking at a URL gated above their role.
+   */
+  landingHref?: string;
 }
 
-export default function AccountMenu({ role, login }: AccountMenuProps) {
+export default function AccountMenu({ role, login, landingHref }: AccountMenuProps) {
   const [open, setOpen] = useState(false);
+  // null until the effect below reads the cookie client-side — the actual
+  // active theme (whatever THEME_INIT_SCRIPT/ThemeSync already applied to
+  // <html>) always renders correctly regardless; this state only drives
+  // which toggle button shows as selected.
+  const [themeOverride, setThemeOverride] = useState<Theme | null>(null);
   const ref = useRef<HTMLDivElement>(null);
   const router = useRouter();
   const pathname = usePathname();
@@ -27,10 +41,28 @@ export default function AccountMenu({ role, login }: AccountMenuProps) {
     return () => document.removeEventListener("click", onClickOutside);
   }, []);
 
+  useEffect(() => {
+    setThemeOverride(readThemeOverride());
+  }, []);
+
+  function selectTheme(theme: Theme) {
+    writeThemeOverride(theme);
+    setThemeOverride(theme);
+  }
+
+  function resetTheme() {
+    clearThemeOverride(defaultThemeForRole(role));
+    setThemeOverride(null);
+  }
+
   function selectRole(next: Role) {
-    const params = new URLSearchParams(searchParams.toString());
-    params.set("view", next);
-    router.push(`${pathname}?${params.toString()}`);
+    if (landingHref) {
+      router.push(`${landingHref}?view=${next}`);
+    } else {
+      const params = new URLSearchParams(searchParams.toString());
+      params.set("view", next);
+      router.push(`${pathname}?${params.toString()}`);
+    }
     setOpen(false);
   }
 
@@ -72,6 +104,32 @@ export default function AccountMenu({ role, login }: AccountMenuProps) {
               </button>
             ))}
           </div>
+
+          <p className="account-menu__section-label">Theme</p>
+          <div className="account-menu__roles">
+            <button
+              type="button"
+              className={`account-menu__role${themeOverride === "light" ? " account-menu__role--active" : ""}`}
+              onClick={() => selectTheme("light")}
+            >
+              Light
+            </button>
+            <button
+              type="button"
+              className={`account-menu__role${themeOverride === "dark" ? " account-menu__role--active" : ""}`}
+              onClick={() => selectTheme("dark")}
+            >
+              Dark
+            </button>
+            <button
+              type="button"
+              className={`account-menu__role${themeOverride === null ? " account-menu__role--active" : ""}`}
+              onClick={resetTheme}
+            >
+              Auto ({defaultThemeForRole(role)})
+            </button>
+          </div>
+
           {login && (
             <a href="/api/auth/logout" className="account-menu__signout">
               Sign out

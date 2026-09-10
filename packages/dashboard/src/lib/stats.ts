@@ -36,6 +36,27 @@ export interface CarbonByFile {
   kgCO2e: number;
 }
 
+/** One row of the Middle Management "is cost concentrated or spread out"
+ * matrix — same three counts/totals as severityCounts, but carrying cost and
+ * carbon too so the view can show $/finding, not just occurrence counts. */
+export interface CostBySeverity {
+  severity: Severity;
+  count: number;
+  totalCostUsd: number;
+  totalKgCO2e: number;
+}
+
+/** Findings grouped by their immediate parent directory — a proxy for
+ * "which part of the codebase/team owns this," independent of language (a
+ * Python and a Java file both under an `orders/` folder land in the same
+ * bucket). Used by the Middle Management "impact by domain" chart. */
+export interface DomainImpact {
+  domain: string;
+  count: number;
+  kgCO2e: number;
+  costUsd: number;
+}
+
 export interface DashboardStats {
   total: number;
   filesAffected: number;
@@ -47,9 +68,17 @@ export interface DashboardStats {
   carbonConfidence: string | null;
   avgGridIntensityGco2PerKwh: number | null;
   carbonByFile: CarbonByFile[];
+  costBySeverity: CostBySeverity[];
+  domainImpacts: DomainImpact[];
   severityCounts: SeverityCount[];
   fileImpacts: FileImpact[];
   ruleCounts: RuleCount[];
+}
+
+export function domainOf(filePath: string): string {
+  const segments = filePath.split("/").filter(Boolean);
+  segments.pop(); // drop the filename itself
+  return segments[segments.length - 1] ?? "(root)";
 }
 
 function dominantSeverityOf(bySeverity: Record<Severity, number>): Severity {
@@ -70,6 +99,12 @@ export function computeStats(findings: EnrichedFinding[]): DashboardStats {
   const fileMap = new Map<string, Record<Severity, number>>();
   const ruleMap = new Map<string, number>();
   const carbonByFileMap = new Map<string, number>();
+  const costBySeverityMap: Record<Severity, { count: number; totalCostUsd: number; totalKgCO2e: number }> = {
+    low: { count: 0, totalCostUsd: 0, totalKgCO2e: 0 },
+    medium: { count: 0, totalCostUsd: 0, totalKgCO2e: 0 },
+    high: { count: 0, totalCostUsd: 0, totalKgCO2e: 0 },
+  };
+  const domainMap = new Map<string, { count: number; kgCO2e: number; costUsd: number }>();
   let totalKgCO2e = 0;
   let totalCostUsd = 0;
   let fixedCount = 0;
@@ -81,12 +116,21 @@ export function computeStats(findings: EnrichedFinding[]): DashboardStats {
   for (const finding of findings) {
     severityCounts[finding.severity] += 1;
     ruleMap.set(finding.ruleId, (ruleMap.get(finding.ruleId) ?? 0) + 1);
-    if (finding.idempotencyKey) fixedCount += 1;
+    // idempotencyKey is set on every finding (CLI uses it to link even a
+    // failed-validation finding to its GitHub advisory Issue), so it can't
+    // signal "was this actually fixed" — suggestedFixDiff is only populated
+    // when recommendFinding's validation passed, which is the real signal.
+    if (finding.suggestedFixDiff) fixedCount += 1;
+    costBySeverityMap[finding.severity].count += 1;
 
     if (!fileMap.has(finding.filePath)) {
       fileMap.set(finding.filePath, { low: 0, medium: 0, high: 0 });
     }
     fileMap.get(finding.filePath)![finding.severity] += 1;
+
+    const domain = domainOf(finding.filePath);
+    const domainEntry = domainMap.get(domain) ?? { count: 0, kgCO2e: 0, costUsd: 0 };
+    domainEntry.count += 1;
 
     if (finding.estimate) {
       hasCarbonEstimate = true;
@@ -96,11 +140,16 @@ export function computeStats(findings: EnrichedFinding[]): DashboardStats {
       // the whole running sum into NaN (NaN, unlike null/undefined, isn't
       // caught by `??` and silently poisons every += after it).
       totalCostUsd += finding.estimate.costUsd ?? 0;
+      costBySeverityMap[finding.severity].totalKgCO2e += finding.estimate.kgCO2e;
+      costBySeverityMap[finding.severity].totalCostUsd += finding.estimate.costUsd ?? 0;
+      domainEntry.kgCO2e += finding.estimate.kgCO2e;
+      domainEntry.costUsd += finding.estimate.costUsd ?? 0;
       carbonByFileMap.set(finding.filePath, (carbonByFileMap.get(finding.filePath) ?? 0) + finding.estimate.kgCO2e);
       weightedIntensitySum += finding.estimate.kgCO2e * finding.estimate.gridIntensityGco2PerKwh;
       carbonMethodology = finding.estimate.methodology;
       carbonConfidence = finding.estimate.confidence;
     }
+    domainMap.set(domain, domainEntry);
   }
 
   const fileImpacts: FileImpact[] = Array.from(fileMap.entries())
@@ -133,6 +182,13 @@ export function computeStats(findings: EnrichedFinding[]): DashboardStats {
     carbonByFile: Array.from(carbonByFileMap.entries())
       .map(([filePath, kgCO2e]) => ({ filePath, kgCO2e }))
       .sort((a, b) => b.kgCO2e - a.kgCO2e),
+    costBySeverity: (["high", "medium", "low"] as Severity[]).map((severity) => ({
+      severity,
+      ...costBySeverityMap[severity],
+    })),
+    domainImpacts: Array.from(domainMap.entries())
+      .map(([domain, v]) => ({ domain, ...v }))
+      .sort((a, b) => b.kgCO2e - a.kgCO2e || b.costUsd - a.costUsd),
     severityCounts: (["high", "medium", "low"] as Severity[]).map((severity) => ({
       severity,
       count: severityCounts[severity],

@@ -1,0 +1,46 @@
+import { cookies } from "next/headers";
+import { notFound, redirect } from "next/navigation";
+import { FixesSection } from "../../../../components/Dashboard";
+import ProjectShell from "../../../../components/ProjectShell";
+import { parseRole, ROLE_RANK } from "../../../../lib/role";
+import { loadProject } from "../../../../lib/projects";
+import { computeFixesInProgress } from "../../../../lib/roleStats";
+import { COOKIE_NAME, verifySessionCookieValue } from "../../../../lib/session";
+
+export const dynamic = "force-dynamic";
+
+export default async function ProjectFixesPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ projectId: string }>;
+  searchParams: Promise<{ view?: string }>;
+}) {
+  const { projectId } = await params;
+  const { view } = await searchParams;
+  const role = parseRole(view, "engineer");
+  if (ROLE_RANK[role] < ROLE_RANK.manager) {
+    redirect(`/projects/${projectId}?view=${role}`);
+  }
+  const session = process.env.GITHUB_OAUTH_CLIENT_ID
+    ? verifySessionCookieValue((await cookies()).get(COOKIE_NAME)?.value)
+    : null;
+  const data = await loadProject(projectId);
+
+  if (!data) {
+    notFound();
+  }
+
+  return (
+    <ProjectShell
+      projectId={projectId}
+      projectName={data.project.name}
+      repoUrl={data.project.repoUrl}
+      scannedAt={data.project.scannedAt}
+      role={role}
+      login={session?.login}
+    >
+      <FixesSection fixesInProgress={computeFixesInProgress(data.findings)} repoUrl={data.project.repoUrl} />
+    </ProjectShell>
+  );
+}

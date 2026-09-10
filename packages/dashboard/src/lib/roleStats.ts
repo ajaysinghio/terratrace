@@ -55,7 +55,7 @@ export function computeServiceBreakdown(findings: EnrichedFinding[]): ServiceImp
   }
   return Array.from(byService.entries())
     .map(([service, v]) => ({ service, ...v }))
-    .sort((a, b) => b.costUsd - a.costUsd || b.kgCO2e - a.kgCO2e || b.count - a.count);
+    .sort((a, b) => b.kgCO2e - a.kgCO2e || b.costUsd - a.costUsd || b.count - a.count);
 }
 
 /**
@@ -86,7 +86,7 @@ export function computeRecommendations(findings: EnrichedFinding[]): Recommendat
       });
     }
   }
-  return Array.from(byRule.values()).sort((a, b) => b.totalCostUsd - a.totalCostUsd || b.totalKgCO2e - a.totalKgCO2e || b.count - a.count);
+  return Array.from(byRule.values()).sort((a, b) => b.totalKgCO2e - a.totalKgCO2e || b.totalCostUsd - a.totalCostUsd || b.count - a.count);
 }
 
 /**

@@ -1,0 +1,64 @@
+{
+  "project": {
+    "id": "infra",
+    "name": "Infra",
+    "repoUrl": "https://github.com/ajaysinghio/terratrace",
+    "scannedAt": "2026-09-10T10:27:34.374Z"
+  },
+  "findings": [
+    {
+      "id": "fb1907dfa7cc585d",
+      "ruleId": "no-autoscaling-floor",
+      "severity": "medium",
+      "filePath": "./sample-repo/terraform/app_asg.tf",
+      "startLine": 4,
+      "endLine": 10,
+      "snippet": "resource \"aws_autoscaling_group\" \"app\" {\n  name                = \"app-asg\"\n  min_size            = 6\n  max_size            = 6\n  desired_capacity    = 6\n  vpc_zone_identifier = [\"subnet-abc\"]\n}",
+      "message": "This Auto Scaling Group's min_size equals its max_size (6), so it can never scale down — it runs 6 instances around the clock regardless of load. Set a lower min_size (or a floor tied to real traffic) so idle capacity isn't billed, and emitting carbon, 24/7.",
+      "estimate": {
+        "kgCO2e": 0.327366319125,
+        "methodology": "ccf-derived",
+        "gridIntensityGco2PerKwh": 379.00000000000006,
+        "confidence": "medium",
+        "costUsd": 306.25
+      },
+      "idempotencyKey": "5fdbec0f5f2f"
+    },
+    {
+      "id": "7508afd60d159577",
+      "ruleId": "missing-lifecycle-policy",
+      "severity": "medium",
+      "filePath": "./sample-repo/terraform/logs_bucket.tf",
+      "startLine": 4,
+      "endLine": 6,
+      "snippet": "resource \"aws_s3_bucket\" \"logs\" {\n  bucket = \"terratrace-sample-logs\"\n}",
+      "message": "This S3 bucket has no lifecycle rule, so objects accumulate (and keep being billed and re-replicated) forever. Add a lifecycle_rule (or a separate aws_s3_bucket_lifecycle_configuration) to expire or transition old objects to a cheaper, lower-carbon storage class.",
+      "estimate": {
+        "kgCO2e": 1.5243972187500001,
+        "methodology": "ccf-derived",
+        "gridIntensityGco2PerKwh": 379,
+        "confidence": "medium",
+        "costUsd": 96.6
+      },
+      "idempotencyKey": "a1214c9d9719"
+    },
+    {
+      "id": "1ae9a6eebc9a8ea9",
+      "ruleId": "oversized-instance-type",
+      "severity": "medium",
+      "filePath": "./sample-repo/terraform/web_instance.tf",
+      "startLine": 4,
+      "endLine": 11,
+      "snippet": "resource \"aws_instance\" \"web\" {\n  ami           = \"ami-0abcdef1234567890\"\n  instance_type = \"m5.4xlarge\"\n\n  tags = {\n    Name = \"web\"\n  }\n}",
+      "message": "This EC2 instance uses a large/xlarge-class instance type (m5.4xlarge). Oversized instances amplify both cost and carbon footprint when the workload doesn't need that much capacity; right-size against real CPU/memory utilization, or move variable load onto an Auto Scaling Group instead of a fixed large size.",
+      "estimate": {
+        "kgCO2e": 0.327366319125,
+        "methodology": "ccf-derived",
+        "gridIntensityGco2PerKwh": 379.00000000000006,
+        "confidence": "medium",
+        "costUsd": 306.25
+      },
+      "idempotencyKey": "341478cba418"
+    }
+  ]
+}

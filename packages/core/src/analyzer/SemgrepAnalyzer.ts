@@ -211,7 +211,13 @@ export class SemgrepAnalyzer implements CodeAnalyzer {
     sourceCode: string,
     knownRuleIds: string[],
   ): CodeFinding {
-    const severity = mapSeverity(result.extra.severity);
+    // Prefer the rule's own `metadata.terratrace-severity` (our taxonomy)
+    // over Semgrep's built-in severity (ERROR/WARNING/INFO) — every rule
+    // pack sets `severity: WARNING` for Semgrep's own linting purposes
+    // regardless of how carbon/cost-impactful the pattern actually is, so
+    // reading only result.extra.severity flattened every finding to
+    // "medium" and made terratrace-severity in the YAML dead metadata.
+    const severity = mapSeverity(result.extra.metadata?.["terratrace-severity"], result.extra.severity);
     // Always slice from source. Semgrep OSS returns the placeholder string
     // "requires login" for extra.lines on some rule configurations — using
     // it as the snippet collapses distinct matches into identical hashes
@@ -254,8 +260,11 @@ export class SemgrepAnalyzer implements CodeAnalyzer {
   }
 }
 
-function mapSeverity(input: string | undefined): Severity {
-  switch ((input ?? "").toUpperCase()) {
+function mapSeverity(terratraceOverride: unknown, semgrepSeverity: string | undefined): Severity {
+  if (terratraceOverride === "high" || terratraceOverride === "medium" || terratraceOverride === "low") {
+    return terratraceOverride;
+  }
+  switch ((semgrepSeverity ?? "").toUpperCase()) {
     case "ERROR":
       return "high";
     case "WARNING":

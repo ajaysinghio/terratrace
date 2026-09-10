@@ -19,7 +19,7 @@ const FEATURES = [
   {
     icon: "💵",
     title: "Correlate",
-    body: "Ties every finding to real AWS billing usage — impact measured in $/mo and kgCO2e, not guesswork.",
+    body: "Ties every finding to real AWS billing usage — impact measured in kgCO2e and $/mo, not guesswork.",
   },
   {
     icon: "🛠️",
@@ -95,9 +95,9 @@ export default async function LandingPage({
 
       <section className="landing__hero">
         <div className="landing__eyebrow">Carbon &amp; cost impact scanning</div>
-        <h1 className="landing__headline">See what your code costs — in dollars and carbon.</h1>
+        <h1 className="landing__headline">See what your code emits — in carbon and dollars.</h1>
         <p className="landing__tagline">
-          TerraTrace scans your codebase for cost- and carbon-inefficient patterns, correlates every finding with
+          TerraTrace scans your codebase for carbon- and cost-inefficient patterns, correlates every finding with
           real AWS billing data, and generates a validated fix — not a generic suggestion.
         </p>
       </section>
