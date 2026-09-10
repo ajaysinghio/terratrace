@@ -11,8 +11,11 @@ def low_stock_by_warehouse(threshold=10):
     warehouses = Warehouse.objects.all()
     low_stock = {}
 
-    for warehouse in warehouses:
-        entries = StockEntry.objects.filter(warehouse_id=warehouse.id)
-        low_stock[warehouse.id] = [e for e in entries if e.quantity < threshold]
+    warehouse_ids = [w.id for w in warehouses]
+    all_entries = StockEntry.objects.filter(
+        warehouse_id__in=warehouse_ids, quantity__lt=threshold
+    )
+    for entry in all_entries:
+        low_stock.setdefault(entry.warehouse_id, []).append(entry)
 
     return low_stock
