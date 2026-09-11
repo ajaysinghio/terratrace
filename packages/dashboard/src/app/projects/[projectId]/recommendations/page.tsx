@@ -15,10 +15,10 @@ export default async function ProjectRecommendationsPage({
   searchParams,
 }: {
   params: Promise<{ projectId: string }>;
-  searchParams: Promise<{ view?: string }>;
+  searchParams: Promise<{ view?: string; rule?: string }>;
 }) {
   const { projectId } = await params;
-  const { view } = await searchParams;
+  const { view, rule } = await searchParams;
   const role = parseRole(view, "engineer");
   if (ROLE_RANK[role] < ROLE_RANK.manager) {
     redirect(`/projects/${projectId}?view=${role}`);
@@ -41,7 +41,11 @@ export default async function ProjectRecommendationsPage({
       role={role}
       login={session?.login}
     >
-      <RecommendationsSection stats={computeStats(data.findings)} recommendations={computeRecommendations(data.findings)} />
+      <RecommendationsSection
+        stats={computeStats(data.findings)}
+        recommendations={computeRecommendations(data.findings)}
+        focusedRuleId={rule ?? null}
+      />
     </ProjectShell>
   );
 }

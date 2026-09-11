@@ -40,7 +40,11 @@ export default async function ProjectFixesPage({
       role={role}
       login={session?.login}
     >
-      <FixesSection fixesInProgress={computeFixesInProgress(data.findings)} repoUrl={data.project.repoUrl} />
+      <FixesSection
+        projectId={projectId}
+        role={role}
+        fixesInProgress={computeFixesInProgress(data.findings)}
+      />
     </ProjectShell>
   );
 }

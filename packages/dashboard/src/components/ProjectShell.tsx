@@ -35,7 +35,7 @@ export default function ProjectShell({
         </Link>
         <h1>{projectName}</h1>
         <p>
-          {repoUrl ?? projectId}
+          {repoUrl ? repoUrl.replace(/^https?:\/\//, "") : projectId}
           {scannedAt && ` · scanned ${new Date(scannedAt).toLocaleString()}`}
         </p>
       </header>

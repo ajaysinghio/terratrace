@@ -2,8 +2,8 @@
 
 import type { EnrichedFinding } from "@terratrace/core";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
 import {
   Bar,
   BarChart,
@@ -60,18 +60,32 @@ function formatUsd(value: number): string {
   return usd.format(value);
 }
 
-function StatTile({ label, value, accent }: { label: string; value: string; accent?: string }) {
-  return (
-    <div className="stat-tile">
+function StatTile({ label, value, accent, href }: { label: string; value: string; accent?: string; href?: string }) {
+  const content = (
+    <>
       <div className="stat-tile__value" style={accent ? { color: accent } : undefined}>
         {value}
       </div>
       <div className="stat-tile__label">{label}</div>
-    </div>
+    </>
   );
+  if (href) {
+    return (
+      <Link href={href} className="stat-tile stat-tile--clickable">
+        {content}
+      </Link>
+    );
+  }
+  return <div className="stat-tile">{content}</div>;
 }
 
-function SeverityDonut({ stats }: { stats: ReturnType<typeof computeStats> }) {
+function SeverityDonut({
+  stats,
+  onSelectSeverity,
+}: {
+  stats: ReturnType<typeof computeStats>;
+  onSelectSeverity?: (severity: "high" | "medium" | "low") => void;
+}) {
   const data = stats.severityCounts.filter((s) => s.count > 0);
 
   if (data.length === 0) {
@@ -88,6 +102,16 @@ function SeverityDonut({ stats }: { stats: ReturnType<typeof computeStats> }) {
           innerRadius={55}
           outerRadius={85}
           paddingAngle={3}
+          cursor={onSelectSeverity ? "pointer" : undefined}
+          onClick={
+            onSelectSeverity
+              ? (entry) => {
+                  const s = (entry as unknown as { payload: { severity: "high" | "medium" | "low" } }).payload
+                    ?.severity;
+                  if (s) onSelectSeverity(s);
+                }
+              : undefined
+          }
         >
           {data.map((entry) => (
             <Cell key={entry.severity} fill={entry.color} stroke="none" />
@@ -308,22 +332,57 @@ export function ImpactBarChart({ data, labelWidth = 110 }: { data: ImpactBarDatu
   );
 }
 
-export function ServiceBreakdownChart({ data }: { data: ServiceImpact[] }) {
+export function ServiceBreakdownChart({
+  data,
+  hrefForService,
+}: {
+  data: ServiceImpact[];
+  hrefForService?: (service: string) => string;
+}) {
   return (
     <ImpactBarChart
-      data={data.map((d) => ({ label: d.service, count: d.count, kgCO2e: d.kgCO2e, costUsd: d.costUsd }))}
+      data={data.map((d) => ({
+        label: d.service,
+        count: d.count,
+        kgCO2e: d.kgCO2e,
+        costUsd: d.costUsd,
+        href: hrefForService?.(d.service),
+      }))}
     />
   );
 }
 
-export function RecommendationsList({ recommendations }: { recommendations: Recommendation[] }) {
+function recoRowId(ruleId: string): string {
+  return `reco-${ruleId.replace(/[^a-zA-Z0-9]/g, "-")}`;
+}
+
+export function RecommendationsList({
+  recommendations,
+  focusedRuleId,
+}: {
+  recommendations: Recommendation[];
+  focusedRuleId?: string | null;
+}) {
+  useEffect(() => {
+    if (focusedRuleId) {
+      document.getElementById(recoRowId(focusedRuleId))?.scrollIntoView({ block: "start", behavior: "smooth" });
+    }
+    // Only ever seed from the URL once per navigation.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusedRuleId]);
+
   if (recommendations.length === 0) {
     return <div className="empty-chart">No recommendations yet.</div>;
   }
   return (
     <ul className="reco-list">
       {recommendations.map((r) => (
-        <li key={r.ruleId} className="reco" style={{ borderLeftColor: SEVERITY_COLOR[r.severity] }}>
+        <li
+          key={r.ruleId}
+          id={recoRowId(r.ruleId)}
+          className={`reco${r.ruleId === focusedRuleId ? " reco--focused" : ""}`}
+          style={{ borderLeftColor: SEVERITY_COLOR[r.severity] }}
+        >
           <div className="reco__header">
             <span className="finding__rule">{r.ruleId}</span>
             <span className="reco__count">
@@ -340,31 +399,68 @@ export function RecommendationsList({ recommendations }: { recommendations: Reco
   );
 }
 
-export function FixesInProgressList({ fixes, repoUrl }: { fixes: FixInProgress[]; repoUrl?: string }) {
-  if (fixes.length === 0) {
+interface FixRuleGroup {
+  ruleId: string;
+  fixes: FixInProgress[];
+  dominantSeverity: FixInProgress["severity"];
+}
+
+function groupFixesByRule(fixes: FixInProgress[]): FixRuleGroup[] {
+  const byRule = new Map<string, FixRuleGroup>();
+  for (const f of fixes) {
+    const existing = byRule.get(f.ruleId);
+    if (existing) {
+      existing.fixes.push(f);
+      if (SEVERITY_WEIGHT[f.severity] > SEVERITY_WEIGHT[existing.dominantSeverity]) {
+        existing.dominantSeverity = f.severity;
+      }
+    } else {
+      byRule.set(f.ruleId, { ruleId: f.ruleId, fixes: [f], dominantSeverity: f.severity });
+    }
+  }
+  return Array.from(byRule.values()).sort(
+    (a, b) =>
+      SEVERITY_WEIGHT[b.dominantSeverity] - SEVERITY_WEIGHT[a.dominantSeverity] ||
+      b.fixes.length - a.fixes.length ||
+      a.ruleId.localeCompare(b.ruleId),
+  );
+}
+
+export function FixesInProgressList({
+  fixes,
+  projectId,
+  role,
+}: {
+  fixes: FixInProgress[];
+  projectId: string;
+  role: Role;
+}) {
+  const groups = groupFixesByRule(fixes);
+
+  if (groups.length === 0) {
     return <div className="empty-chart">No fixes tracked yet — findings need a validated fix run first.</div>;
   }
+
   return (
-    <ul className="fix-list">
-      {fixes.map((f) => {
-        const url = findingLabelUrl(repoUrl, f.idempotencyKey);
+    <div className="file-list">
+      {groups.map((g) => {
+        const href = `/projects/${projectId}/files?view=${role}&rule=${encodeURIComponent(g.ruleId)}`;
         return (
-          <li key={f.idempotencyKey} className="fix">
-            <span className="finding__location">
-              {shortPath(f.filePath)}:{f.startLine}
+          <Link key={g.ruleId} href={href} className="file-group__header file-group__header--link">
+            <span className="badge" style={{ background: SEVERITY_COLOR[g.dominantSeverity] }}>
+              {g.dominantSeverity}
             </span>
-            <span className="finding__rule">{f.ruleId}</span>
-            {url ? (
-              <a href={url} target="_blank" rel="noopener noreferrer">
-                View on GitHub →
-              </a>
-            ) : (
-              <span className="fix__no-link">no repo URL to link to</span>
-            )}
-          </li>
+            <span className="fix-group__rule" style={{ color: SEVERITY_COLOR[g.dominantSeverity] }}>
+              {g.ruleId}
+            </span>
+            <span className="file-group__meta">
+              {g.fixes.length} fix{g.fixes.length === 1 ? "" : "es"}
+            </span>
+            <span className="file-group__chevron">→</span>
+          </Link>
         );
       })}
-    </ul>
+    </div>
   );
 }
 
@@ -694,86 +790,152 @@ export function OverviewSection({
   const router = useRouter();
   const rank = ROLE_RANK[role];
 
+  function filesHref(severity?: EnrichedFinding["severity"]): string {
+    const params = new URLSearchParams({ view: role });
+    if (severity) params.set("severity", severity);
+    return `/projects/${projectId}/files?${params.toString()}`;
+  }
+
   function selectFile(filePath: string) {
     router.push(`/projects/${projectId}/files?view=${role}&file=${encodeURIComponent(filePath)}`);
   }
 
+  const highCount = stats.severityCounts.find((s) => s.severity === "high")?.count ?? 0;
+  const remediationPct = stats.total > 0 ? Math.round((stats.fixedCount / stats.total) * 100) : 0;
+
+  function serviceHref(service: string): string {
+    const params = new URLSearchParams({ view: role, service });
+    return `/projects/${projectId}/files?${params.toString()}`;
+  }
+
   return (
     <>
-      <section className="stat-grid">
-        <StatTile label="Total findings" value={String(stats.total)} />
-        <StatTile
-          label="Est. carbon impact"
-          value={stats.hasCarbonEstimate ? `${stats.totalKgCO2e!.toFixed(3)} kgCO2e` : "—"}
-          accent={stats.hasCarbonEstimate ? "#3fb950" : undefined}
-        />
-        <StatTile
-          label="Est. cost impact"
-          value={stats.totalCostUsd ? `${formatUsd(stats.totalCostUsd)}/mo` : "—"}
-          accent={stats.totalCostUsd ? "#d29922" : undefined}
-        />
-        <StatTile
-          label="High severity"
-          value={String(stats.severityCounts.find((s) => s.severity === "high")?.count ?? 0)}
-          accent={SEVERITY_COLOR.high}
-        />
-        <StatTile
-          label="Remediation progress"
-          value={stats.total > 0 ? `${Math.round((stats.fixedCount / stats.total) * 100)}%` : "—"}
-          accent="#58a6ff"
-        />
-        <StatTile label="Files affected" value={String(stats.filesAffected)} />
+      <section className="exec-hero card">
+        <h2 className="exec-hero__title">Eco-Impact Overview</h2>
+        <div className="exec-hero__primary">
+          <div className="exec-hero__metric">
+            <div className="exec-hero__value" style={{ color: "#d29922" }}>
+              {stats.totalCostUsd ? `${formatUsd(stats.totalCostUsd)}/mo` : "—"}
+            </div>
+            <div className="exec-hero__label">estimated cost impact</div>
+          </div>
+          <div className="exec-hero__divider" aria-hidden />
+          <div className="exec-hero__metric">
+            <div className="exec-hero__value" style={{ color: "#3fb950" }}>
+              {stats.hasCarbonEstimate ? `${stats.totalKgCO2e!.toFixed(3)} kgCO2e` : "—"}
+            </div>
+            <div className="exec-hero__label">estimated carbon footprint</div>
+          </div>
+        </div>
+        <div className="exec-hero__pills">
+          <Link href={filesHref()} className="exec-hero__pill">
+            📄 <strong>{stats.filesAffected}</strong> File{stats.filesAffected === 1 ? "" : "s"}
+          </Link>
+          {stats.hasCarbonEstimate &&
+            (() => {
+              const eq = computeEquivalents(stats.totalKgCO2e!);
+              return (
+                <>
+                  <span className="exec-hero__pill" title="Equivalent car travel">
+                    🚗 <strong>{eq.kmDriven.toFixed(1)}</strong> km
+                  </span>
+                  <span className="exec-hero__pill" title="Equivalent smartphone charges">
+                    ⚡ <strong>{Math.round(eq.smartphoneCharges)}</strong> Charges
+                  </span>
+                  <span className="exec-hero__pill" title="Tree-days to offset">
+                    🌳 <strong>{eq.treeDaysToOffset.toFixed(1)}</strong> Tree-days
+                  </span>
+                </>
+              );
+            })()}
+          {highCount > 0 && (
+            <Link
+              href={filesHref("high")}
+              className="exec-hero__pill exec-hero__pill--danger"
+            >
+              🚨 <strong>{highCount}</strong> High Severity ({stats.total} Total)
+            </Link>
+          )}
+        </div>
       </section>
 
       <section className="chart-grid">
         <div className="card">
           <h2>Severity breakdown</h2>
-          <SeverityDonut stats={stats} />
+          <SeverityDonut
+            stats={stats}
+            onSelectSeverity={(severity) => router.push(filesHref(severity))}
+          />
           <div className="legend">
-            {stats.severityCounts.map((s) => (
-              <span key={s.severity} className="legend__item">
-                <span className="legend__swatch" style={{ background: s.color }} />
-                {s.severity} ({s.count})
-              </span>
-            ))}
+            {stats.severityCounts.map((s) =>
+              s.count > 0 ? (
+                <Link
+                  key={s.severity}
+                  href={filesHref(s.severity)}
+                  className="legend__item legend__item--clickable"
+                >
+                  <span className="legend__swatch" style={{ background: s.color }} />
+                  {s.severity} ({s.count})
+                </Link>
+              ) : (
+                <span key={s.severity} className="legend__item">
+                  <span className="legend__swatch" style={{ background: s.color }} />
+                  {s.severity} ({s.count})
+                </span>
+              ),
+            )}
           </div>
-        </div>
-
-        {stats.hasCarbonEstimate && (
-          <div className="card">
-            <h2>Environmental impact, in context</h2>
-            <p className="card__hint">Illustrative equivalents, not scientifically tied to the estimate above.</p>
-            <EnvironmentalImpact totalKgCO2e={stats.totalKgCO2e!} />
-          </div>
-        )}
-      </section>
-
-      {/* Carbon-ranked first since that's this app's core focus (cost rides
-          alongside as supporting context, not the lead metric). */}
-      <section className="chart-grid">
-        <div className="card">
-          <h2>Top carbon drivers by service</h2>
-          <p className="card__hint">Which AWS service each rule's findings amplify.</p>
-          <ServiceBreakdownChart data={serviceBreakdown} />
         </div>
 
         <div className="card card--wide">
-          <h2>Where carbon & cost are concentrated</h2>
+          <h2>Top carbon drivers by service</h2>
           <p className="card__hint">
-            Box size = weighted severity impact, color = dominant severity in that file.
-            {rank >= ROLE_RANK.engineer && " Click a box to open that file's findings."}
+            Which AWS service each rule&apos;s findings amplify. Click a bar to open its findings.
           </p>
-          <FileHeatmap
-            fileImpacts={stats.fileImpacts}
-            onSelectFile={rank >= ROLE_RANK.engineer ? selectFile : undefined}
-          />
+          <ServiceBreakdownChart data={serviceBreakdown} hrefForService={serviceHref} />
         </div>
       </section>
 
-      {/* What makes Manager's and Engineer's landing actually different from
-          Executive's, not just "the same page plus a fuller side nav" — a
-          one-line callout pointing at the single most useful next click for
-          that role, rather than a whole extra block of cards. */}
+      <section className="card exec-remediation">
+        <div className="exec-remediation__meta">
+          <div>
+            <strong>Remediation Progress</strong>
+          </div>
+          <div className="exec-remediation__counter">
+            <span className="exec-remediation__count">
+              {stats.fixedCount}/{stats.total}
+            </span>
+          </div>
+        </div>
+        <div className="exec-remediation__track">
+          <div
+            className="exec-remediation__fill"
+            style={{ width: `${Math.max(remediationPct, 4)}%`, background: remediationPct > 0 ? "#3fb950" : "#58a6ff" }}
+          />
+        </div>
+        <div className="exec-remediation__footer">
+          <span className="card__hint" style={{ margin: 0 }}>
+            {remediationPct}% of {stats.total} finding{stats.total === 1 ? "" : "s"} validated and ready to merge.
+          </span>
+          {stats.total > 0 && (
+            <Link href={filesHref()} className="button button--primary">
+              Review findings →
+            </Link>
+          )}
+        </div>
+      </section>
+
+      {rank >= ROLE_RANK.engineer && stats.fileImpacts.length > 0 && (
+        <section className="card">
+          <h2>Where carbon & cost are concentrated</h2>
+          <p className="card__hint">
+            Box size = weighted severity impact, color = dominant severity in that file. Click a box to open that
+            file&apos;s findings.
+          </p>
+          <FileHeatmap fileImpacts={stats.fileImpacts} onSelectFile={selectFile} />
+        </section>
+      )}
+
       {rank >= ROLE_RANK.manager && (
         <div className="callout">
           {stats.domainImpacts[0] && (
@@ -848,16 +1010,18 @@ export function RemediationSection({ stats }: { stats: ReturnType<typeof compute
 export function RecommendationsSection({
   stats,
   recommendations,
+  focusedRuleId,
 }: {
   stats: ReturnType<typeof computeStats>;
   recommendations: Recommendation[];
+  focusedRuleId?: string | null;
 }) {
   return (
     <section className="chart-grid">
       <div className="card">
         <h2>Recommendations</h2>
         <p className="card__hint">One entry per rule, highest carbon impact first.</p>
-        <RecommendationsList recommendations={recommendations} />
+        <RecommendationsList recommendations={recommendations} focusedRuleId={focusedRuleId} />
       </div>
 
       {stats.hasCarbonEstimate && (
@@ -881,16 +1045,20 @@ export function RecommendationsSection({
 }
 
 /** The /projects/[projectId]/fixes route (manager+). */
-export function FixesSection({ fixesInProgress, repoUrl }: { fixesInProgress: FixInProgress[]; repoUrl?: string }) {
+export function FixesSection({
+  projectId,
+  role,
+  fixesInProgress,
+}: {
+  projectId: string;
+  role: Role;
+  fixesInProgress: FixInProgress[];
+}) {
   return (
-    <section className="chart-grid">
-      <div className="card card--wide">
-        <h2>Fixes in progress</h2>
-        <p className="card__hint">
-          Findings with a validated fix run — follow the link for the PR/advisory Issue's live status on GitHub.
-        </p>
-        <FixesInProgressList fixes={fixesInProgress} repoUrl={repoUrl} />
-      </div>
+    <section className="card">
+      <h2>Fixes in progress</h2>
+      <p className="card__hint">Grouped by rule. Click a rule to see its recommendation and the files it affects.</p>
+      <FixesInProgressList fixes={fixesInProgress} projectId={projectId} role={role} />
     </section>
   );
 }
@@ -904,12 +1072,22 @@ export function FilesSection({
   findings,
   repoUrl,
   initialExpandedFile,
+  severityFilter,
+  fileFilter,
+  serviceFilter,
+  ruleFilter,
 }: {
   findings: EnrichedFinding[];
   repoUrl?: string;
   initialExpandedFile: string | null;
+  severityFilter?: EnrichedFinding["severity"] | null;
+  fileFilter?: string | null;
+  serviceFilter?: string | null;
+  ruleFilter?: string | null;
 }) {
   const [expandedFile, setExpandedFile] = useState<string | null>(initialExpandedFile);
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
 
   useEffect(() => {
     if (initialExpandedFile) {
@@ -921,10 +1099,44 @@ export function FilesSection({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const hasFilter = Boolean(severityFilter || fileFilter || serviceFilter || ruleFilter);
+  const clearFiltersHref = useMemo(() => {
+    const next = new URLSearchParams(searchParams);
+    next.delete("severity");
+    next.delete("file");
+    next.delete("service");
+    next.delete("rule");
+    const qs = next.toString();
+    return qs ? `${pathname}?${qs}` : pathname;
+  }, [pathname, searchParams]);
+
   return (
     <section className="card">
-      <h2>Findings by file</h2>
-      <p className="card__hint">Click a file to expand its findings.</p>
+      <div className="files-heading">
+        <h2>Findings by file</h2>
+        {severityFilter && (
+          <span className="files-heading__filter">
+            <span className="badge" style={{ background: SEVERITY_COLOR[severityFilter] }}>
+              {SEVERITY_LABEL[severityFilter]}
+            </span>
+            only
+          </span>
+        )}
+        {fileFilter && <span className="files-heading__filter">file: {fileFilter}</span>}
+        {serviceFilter && <span className="files-heading__filter">service: {serviceFilter}</span>}
+        {ruleFilter && <span className="files-heading__filter">rule: {ruleFilter}</span>}
+      </div>
+      <p className="card__hint">
+        Click a file to expand its findings.
+        {hasFilter && (
+          <>
+            {" "}
+            <Link href={clearFiltersHref} scroll={false} replace className="files-heading__clear">
+              Show all files
+            </Link>
+          </>
+        )}
+      </p>
       <FileFindingsList
         findings={findings}
         repoUrl={repoUrl}

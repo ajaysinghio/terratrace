@@ -34,6 +34,7 @@ export interface FixInProgress {
   filePath: string;
   startLine: number;
   idempotencyKey: string;
+  severity: EnrichedFinding["severity"];
 }
 
 /**
@@ -105,5 +106,6 @@ export function computeFixesInProgress(findings: EnrichedFinding[]): FixInProgre
       filePath: f.filePath,
       startLine: f.startLine,
       idempotencyKey: f.idempotencyKey,
+      severity: f.severity,
     }));
 }
