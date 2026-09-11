@@ -1,5 +1,7 @@
 from .models import Invoice, Subscription
 
+from django.db.models import Sum
+
 
 def monthly_revenue_by_subscription():
     """Sum invoice totals per subscription.
@@ -10,9 +12,8 @@ def monthly_revenue_by_subscription():
     subscriptions = Subscription.objects.all()
     revenue = {}
 
-    for subscription in subscriptions:
-        invoices = Invoice.objects.filter(subscription_id=subscription.id)
-        revenue[subscription.id] = sum(invoice.total for invoice in invoices)
+    totals = Invoice.objects.values("subscription_id").annotate(total_revenue=Sum("total"))
+    revenue = {row["subscription_id"]: row["total_revenue"] for row in totals}
 
     return revenue
 
