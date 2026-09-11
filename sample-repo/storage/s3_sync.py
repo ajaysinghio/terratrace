@@ -15,9 +15,12 @@ def sync_pending_uploads(bucket: str) -> list[str]:
     pending = PendingUpload.objects.filter(synced=False)
     synced_keys = []
 
-    for upload in pending:
-        response = s3.get_object(Bucket=bucket, Key=upload.key)
-        if response["ContentLength"] > 0:
-            synced_keys.append(upload.key)
+    pending_keys = {upload.key for upload in pending}
+
+    paginator = s3.get_paginator("list_objects_v2")
+    for page in paginator.paginate(Bucket=bucket):
+        for obj in page.get("Contents", []):
+            if obj["Key"] in pending_keys and obj["Size"] > 0:
+                synced_keys.append(obj["Key"])
 
     return synced_keys
