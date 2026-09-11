@@ -1,6 +1,6 @@
 {
   "name": "@terratrace/dashboard",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Reads scan-output.json and renders TerraTrace findings.",
   "private": true,
   "scripts": {
