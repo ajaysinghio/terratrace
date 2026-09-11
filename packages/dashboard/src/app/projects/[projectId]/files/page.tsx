@@ -1,5 +1,5 @@
 import type { Severity } from "@terratrace/core";
-import { RULE_SERVICE_MAP } from "@terratrace/core";
+import { RULE_SERVICE_MAP } from "@terratrace/core/correlate";
 import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 import { FilesSection } from "../../../../components/Dashboard";
