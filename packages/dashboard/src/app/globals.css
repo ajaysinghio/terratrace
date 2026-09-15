@@ -605,7 +605,21 @@ a.stat-tile:visited {
   border-radius: 4px;
 }
 
+.logo-link {
+  display: inline-block;
+  color: var(--text);
+  text-decoration: none;
+  font-weight: 700;
+  font-size: 1rem;
+  margin-bottom: 0.4rem;
+}
+
+.logo-link:hover {
+  color: var(--accent);
+}
+
 .back-link {
+  display: block;
   color: var(--text-muted);
   text-decoration: none;
   font-size: 0.85rem;
@@ -673,6 +687,18 @@ a.stat-tile:visited {
   color: var(--accent);
   border-color: var(--accent);
   background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.project-card__remove:disabled,
+.project-card__scan:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.project-card__scan:disabled:hover {
+  color: var(--text-muted);
+  border-color: transparent;
+  background: none;
 }
 
 .project-card__pending-action {

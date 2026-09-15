@@ -60,6 +60,9 @@ export default async function PipelinePage({
   return (
     <div className="dashboard">
       <header className="dashboard__header">
+        <Link href={`/dashboard?view=${role}`} className="logo-link" aria-label="TerraTrace home">
+          🌱 TerraTrace
+        </Link>
         <Link href={`/dashboard?view=${role}`} className="back-link">
           ← All projects
         </Link>

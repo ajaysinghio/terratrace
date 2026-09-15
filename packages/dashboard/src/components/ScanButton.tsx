@@ -21,6 +21,7 @@ export default function ScanButton({
   label,
   variant = "pill",
   stopPropagation = false,
+  alreadyRunning = false,
 }: {
   projectId: string;
   label: string;
@@ -28,11 +29,14 @@ export default function ScanButton({
   variant?: "pill" | "icon";
   /** True when rendered inside a project-card <Link> — prevents the click from also navigating. */
   stopPropagation?: boolean;
+  /** A scan-repo.yml run for this project is already queued/in progress (see getInProgressScanProjectIds) — disables the button for the run's actual duration, not just the moment it takes to dispatch a new one. */
+  alreadyRunning?: boolean;
 }) {
   const router = useRouter();
   const [status, setStatus] = useState<"idle" | "submitting" | "done" | "error">("idle");
   const [message, setMessage] = useState<string | null>(null);
   const [result, setResult] = useState<ScanResult | null>(null);
+  const disabled = alreadyRunning || status === "submitting" || (status === "done" && result?.dispatched);
 
   async function handleClick(event: React.MouseEvent) {
     if (stopPropagation) {
@@ -66,11 +70,11 @@ export default function ScanButton({
         type="button"
         className={variant === "icon" ? "project-card__scan" : "button button--primary"}
         onClick={handleClick}
-        disabled={status === "submitting"}
-        aria-label={variant === "icon" ? label : undefined}
-        title={variant === "icon" ? label : undefined}
+        disabled={disabled}
+        aria-label={variant === "icon" ? (alreadyRunning ? "Scan already running" : label) : undefined}
+        title={variant === "icon" ? (alreadyRunning ? "Scan already running" : label) : undefined}
       >
-        {status === "submitting" ? "…" : variant === "icon" ? "⟳" : label}
+        {status === "submitting" ? "…" : alreadyRunning ? (variant === "icon" ? "⏳" : "Scan running…") : variant === "icon" ? "⟳" : label}
       </button>
       {status === "error" && <p className="billing-upload__error">{message}</p>}
       {status === "done" && result && (

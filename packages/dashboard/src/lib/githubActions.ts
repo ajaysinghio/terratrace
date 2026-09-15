@@ -66,3 +66,21 @@ export async function listScanWorkflowRuns(limit = 20): Promise<ScanWorkflowRun[
     runNumber: run.run_number,
   }));
 }
+
+/**
+ * Project ids with a scan-repo.yml run currently queued or in progress —
+ * used to disable a project's Scan/Rescan button for the run's actual
+ * duration, not just the moment it takes to dispatch it. Parses scan-repo.yml's
+ * run-name ("Scan owner/repo → project-id") since the workflow_dispatch
+ * inputs themselves aren't exposed on the runs list API.
+ */
+export async function getInProgressScanProjectIds(): Promise<Set<string>> {
+  const runs = await listScanWorkflowRuns(20);
+  const ids = new Set<string>();
+  for (const run of runs) {
+    if (run.status !== "queued" && run.status !== "in_progress") continue;
+    const match = run.title.match(/→\s*(\S+)/);
+    if (match) ids.add(match[1]);
+  }
+  return ids;
+}

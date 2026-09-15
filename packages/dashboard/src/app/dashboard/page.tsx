@@ -7,6 +7,7 @@ import GlobalBillingUpload from "../../components/GlobalBillingUpload";
 import RemoveProjectButton from "../../components/RemoveProjectButton";
 import ScanButton from "../../components/ScanButton";
 import { isDbConfigured } from "../../lib/db";
+import { getInProgressScanProjectIds, isGithubActionsConfigured } from "../../lib/githubActions";
 import { ROLE_RANK, parseRole } from "../../lib/role";
 import { loadAllProjects } from "../../lib/projects";
 import { computeServiceBreakdown } from "../../lib/roleStats";
@@ -33,6 +34,7 @@ export default async function HomePage({
     ? verifySessionCookieValue((await cookies()).get(COOKIE_NAME)?.value)
     : null;
   const projects = await loadAllProjects();
+  const inProgressScanIds = isGithubActionsConfigured() ? await getInProgressScanProjectIds() : new Set<string>();
   const summaries = projects
     .map((p) => ({ project: p.project, stats: computeStats(p.findings) }))
     .sort((a, b) => b.stats.total - a.stats.total);
@@ -171,7 +173,15 @@ export default async function HomePage({
                 <Link key={project.id} href={href} className="project-card">
                   {isDbConfigured() && (
                     <div className="project-card__actions">
-                      {!pending && <ScanButton projectId={project.id} label="Rescan" variant="icon" stopPropagation />}
+                      {!pending && (
+                        <ScanButton
+                          projectId={project.id}
+                          label="Rescan"
+                          variant="icon"
+                          stopPropagation
+                          alreadyRunning={inProgressScanIds.has(project.id)}
+                        />
+                      )}
                       <RemoveProjectButton projectId={project.id} projectName={project.name} />
                     </div>
                   )}
@@ -184,7 +194,12 @@ export default async function HomePage({
                   {pending ? (
                     isDbConfigured() && (
                       <div className="project-card__pending-action">
-                        <ScanButton projectId={project.id} label="▶ Scan now" stopPropagation />
+                        <ScanButton
+                          projectId={project.id}
+                          label="▶ Scan now"
+                          stopPropagation
+                          alreadyRunning={inProgressScanIds.has(project.id)}
+                        />
                       </div>
                     )
                   ) : (

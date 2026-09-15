@@ -30,6 +30,9 @@ export default function ProjectShell({
   return (
     <div className="dashboard">
       <header className="dashboard__header">
+        <Link href="/dashboard" className="logo-link" aria-label="TerraTrace home">
+          🌱 TerraTrace
+        </Link>
         <Link href="/dashboard" className="back-link">
           ← All projects
         </Link>
