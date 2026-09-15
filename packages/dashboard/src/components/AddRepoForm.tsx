@@ -63,16 +63,14 @@ export default function AddRepoForm() {
 
   if (!open) {
     return (
-      <div className="add-repo-form__trigger">
-        <button type="button" className="button" onClick={() => setOpen(true)}>
-          + Add repo
-        </button>
-      </div>
+      <button type="button" className="button" onClick={() => setOpen(true)}>
+        + Add repo
+      </button>
     );
   }
 
   return (
-    <div className="card add-repo-form__trigger">
+    <div className="card add-repo-form__card">
       <h2>Add a repo</h2>
       <p className="card__hint">
         Registers a repo to scan — this dashboard can&apos;t run the scan itself (it needs the repo checked out with

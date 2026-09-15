@@ -11,6 +11,17 @@ run-name: "Scan ${{ inputs.repo_owner }}/${{ inputs.repo_name }} → ${{ inputs.
 # of its own: no workflow file, no secrets — this workflow checks it out
 # itself, using CHECKOUT_TOKEN below.
 #
+# READ-ONLY GUARANTEE — DO NOT ADD PR/COMMIT/PUSH STEPS HERE. This workflow
+# only ever reads the target repo (actions/checkout) and writes to
+# terratrace's own DB. It must stay that way even for target repos the
+# account doesn't own (a registered OSS project, say) — nobody should get a
+# surprise automated PR from a routine scan. `recommendFinding`'s validated
+# fix diff already lands safely in the DB as `suggestedFixDiff`; turning
+# that into an actual PR against the target repo is a materially different,
+# far more consequential action (writes to a repo someone else may own,
+# visible to its maintainers) and belongs in its own separate,
+# explicitly-triggered workflow — never bundled into this one.
+#
 # Triggered by the dashboard's "Add repo" flow (see
 # packages/dashboard/src/app/api/projects/route.ts), which calls GitHub's
 # workflow_dispatch API with these same inputs. Can also be run by hand from

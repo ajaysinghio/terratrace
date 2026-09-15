@@ -4,6 +4,7 @@ import { ImpactBarChart, ServiceBreakdownChart } from "../../components/Dashboar
 import AccountMenu from "../../components/AccountMenu";
 import AddRepoForm from "../../components/AddRepoForm";
 import GlobalBillingUpload from "../../components/GlobalBillingUpload";
+import RemoveProjectButton from "../../components/RemoveProjectButton";
 import { isDbConfigured } from "../../lib/db";
 import { ROLE_RANK, parseRole } from "../../lib/role";
 import { loadAllProjects } from "../../lib/projects";
@@ -125,8 +126,9 @@ export default async function HomePage({
         <>
           <div className="dashboard-toolbar">
             <Link href={`/pipeline?view=${role}`} className="button">
-              Pipeline status →
+              📈 Pipeline status
             </Link>
+            {isDbConfigured() && <AddRepoForm />}
           </div>
 
           {rank >= ROLE_RANK.engineer &&
@@ -166,6 +168,7 @@ export default async function HomePage({
 
               return (
                 <Link key={project.id} href={href} className="project-card">
+                  {isDbConfigured() && <RemoveProjectButton projectId={project.id} projectName={project.name} />}
                   <div className="project-card__header">
                     <h2>{project.name}</h2>
                     <span className="project-card__count">
@@ -197,8 +200,6 @@ export default async function HomePage({
               );
             })}
           </section>
-
-          {isDbConfigured() && <AddRepoForm />}
         </>
       )}
     </div>

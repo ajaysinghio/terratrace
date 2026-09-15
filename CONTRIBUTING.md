@@ -84,7 +84,7 @@ target repo:
 | --- | --- | --- | --- |
 | `DATABASE_URL` | terratrace repo → Settings → Secrets → Actions | — (same value as the dashboard's own `.env`) | scan-repo.yml pushes results here |
 | `ANTHROPIC_API_KEY` **or** `OPENROUTER_API_KEY` | terratrace repo → Actions secrets | — | `AnthropicProvider` falls back to `OPENROUTER_API_KEY` automatically if `ANTHROPIC_API_KEY` isn't set — no code difference, just which one you set |
-| `CHECKOUT_TOKEN` | terratrace repo → Actions secrets | classic PAT, `repo` scope | lets the workflow check out **private** target repos — the default `GITHUB_TOKEN` only sees the terratrace repo itself. Not needed for public target repos. |
+| `CHECKOUT_TOKEN` | terratrace repo → Actions secrets | classic PAT, `repo` scope (same token as `GITHUB_DISPATCH_TOKEN` works fine) | lets the workflow check out **private** target repos — the default `GITHUB_TOKEN` only sees the terratrace repo itself. Not needed for public target repos. `scan-repo.yml`'s own header comment is the actual guarantee that nothing gets written to the target repo — remediation (opening a PR/pushing a fix) is a deliberately separate, on-demand workflow, never bundled into a routine scan. Scoping this token to a read-only fine-grained PAT is an optional extra hardening layer, not required. |
 | `GITHUB_DISPATCH_TOKEN` | **Vercel** project env vars | classic PAT, `repo` scope | lets the dashboard's "Add repo" route call `workflow_dispatch` |
 | `GITHUB_SCANNER_REPO` | Vercel project env vars (optional) | — | defaults to `ajaysinghio/terratrace` if unset |
 

@@ -164,6 +164,12 @@ export async function dbRegisterProject(project: ProjectMeta): Promise<void> {
   `;
 }
 
+/** Removes a project and (via cascade) its findings/billing_uploads — only ever touches TerraTrace's own DB rows, never the target repo itself. */
+export async function dbDeleteProject(projectId: string): Promise<void> {
+  const db = sql();
+  await db`delete from projects where id = ${projectId}`;
+}
+
 /**
  * Upserts a project and its findings in one call — the write side of the
  * scan → dashboard handoff (CLI/GitHub Action output landing in the DB
