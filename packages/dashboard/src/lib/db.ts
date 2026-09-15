@@ -335,3 +335,43 @@ export async function dbGetLatestBillingUpload(projectId: string): Promise<Billi
     uploadedAt: row.uploaded_at,
   };
 }
+
+export interface BillingUploadHistoryEntry extends BillingUpload {
+  projectName: string;
+  /** How many of this project's findings still carry this upload's estimate — 0 means a later upload or rescan has since superseded it. */
+  findingsStillLinked: number;
+}
+
+/** Org-wide upload history for the Pipeline page — every upload ever made, newest first, regardless of whether it's still the live correlation for its project (see dbGetLatestBillingUpload for that narrower "still live" query). */
+export async function dbListBillingUploads(limit = 50): Promise<BillingUploadHistoryEntry[]> {
+  const db = sql();
+  const rows = (await db`
+    select
+      bu.id, bu.project_id, bu.source_type, bu.filename, bu.record_count, bu.uploaded_at,
+      p.name as project_name,
+      (select count(*) from findings f where f.billing_upload_id = bu.id) as findings_still_linked
+    from billing_uploads bu
+    join projects p on p.id = bu.project_id
+    order by bu.uploaded_at desc
+    limit ${limit}
+  `) as Array<{
+    id: string;
+    project_id: string;
+    source_type: BillingSourceType;
+    filename: string | null;
+    record_count: number;
+    uploaded_at: string;
+    project_name: string;
+    findings_still_linked: number;
+  }>;
+  return rows.map((row) => ({
+    id: row.id,
+    projectId: row.project_id,
+    sourceType: row.source_type,
+    filename: row.filename,
+    recordCount: row.record_count,
+    uploadedAt: row.uploaded_at,
+    projectName: row.project_name,
+    findingsStillLinked: Number(row.findings_still_linked),
+  }));
+}

@@ -328,6 +328,37 @@ a.stat-tile:visited {
   margin-top: 1.5rem;
 }
 
+.dashboard-toolbar {
+  margin-top: 1.5rem;
+}
+
+.pipeline-table-wrap {
+  overflow-x: auto;
+}
+
+.pipeline-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.pipeline-table th {
+  text-align: left;
+  color: var(--text-muted);
+  font-weight: 500;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.pipeline-table td {
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.pipeline-table tr:last-child td {
+  border-bottom: none;
+}
+
 .add-repo-form {
   display: flex;
   gap: 0.5rem;

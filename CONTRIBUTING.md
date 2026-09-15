@@ -23,6 +23,98 @@ pnpm build              # builds packages in dependency order (core first)
 (`pnpm --filter @terratrace/core build`) before other packages will pick up
 the change — `pnpm -r build` from the root handles ordering automatically.
 
+## Dashboard findings DB, CUR upload, and the central scan pipeline
+
+The dashboard can run two ways: reading `scan-output/<project-id>.json`
+files straight off disk (the original, zero-setup local-dev path — nothing
+below is required for that), or backed by a real Postgres findings store
+once `DATABASE_URL` is set, which unlocks CUR upload and the "Add repo" scan
+pipeline. `src/lib/projects.ts` picks whichever `isDbConfigured()` says is
+available, so both paths keep working side by side.
+
+### 1. Findings database
+
+- Provision a Postgres database (a Neon project via Vercel's Storage tab is
+  the recommended path — `@neondatabase/serverless` is the driver used
+  throughout `packages/dashboard/src/lib/db.ts`).
+- Set `DATABASE_URL` in `packages/dashboard/.env` (local) and as a Vercel
+  project env var (deployed) — this is one connection string with
+  credentials embedded (`postgresql://user:password@host/db?sslmode=require`),
+  not something to generate separately.
+- Apply the schema once: `pnpm --filter @terratrace/dashboard db:init`
+  (runs `db/schema.sql` — `projects`, `findings`, `billing_uploads`).
+- Backfill existing `scan-output/*.json` into the DB:
+  `pnpm --filter @terratrace/dashboard db:import` (or
+  `... db:import <file>.json` to import just one file — always use the
+  single-file form from automation, since the no-argument form re-imports
+  every committed `scan-output/*.json` and would reset other projects' live
+  CUR-upload correlation back to their stale committed snapshot).
+
+### 2. CUR upload (cost/carbon re-correlation)
+
+AWS issues one Cost and Usage Report **per payer account**, not per
+repo/service — see `packages/core/src/billing/AWSCurSource.ts`'s doc
+comment. So CUR upload lives in exactly one place, the dashboard home page
+(`/dashboard`, `GlobalBillingUpload` component), not per project: one
+upload re-correlates cost/carbon (`correlateFindingsWithUsage`) against
+every scanned project at once, no LLM call and no repo checkout needed.
+Each project page shows a read-only `BillingProvenanceBadge` — green "real
+CUR data" only if a current finding's `billing_upload_id` still points at
+an upload row, amber "from the last scan" otherwise (don't assume a project
+ever having had an upload means its current numbers are still real — a
+rescan resets every finding's estimate and `billing_upload_id` to null;
+see `dbUpsertProject`'s doc comment for why).
+
+### 3. Add a repo / central scan pipeline
+
+`POST /api/projects` (the "Add repo" form on `/dashboard`, Manager/Engineer
+view only) registers a project row and tries to auto-trigger
+`.github/workflows/scan-repo.yml` in **this** repo via GitHub's
+`workflow_dispatch` API — that one workflow does everything a scan needs
+(checkout the *target* repo, build terratrace fresh, install semgrep, run
+the CLI, push results into the DB), so **a target repo needs zero
+configuration of its own**: no workflow file, no secrets. If the dispatch
+isn't configured, the route falls back to handing back the equivalent
+manual commands.
+
+Secrets needed, all on the **terratrace** repo/Vercel project — never on a
+target repo:
+
+| Secret | Where | Scope | Purpose |
+| --- | --- | --- | --- |
+| `DATABASE_URL` | terratrace repo → Settings → Secrets → Actions | — (same value as the dashboard's own `.env`) | scan-repo.yml pushes results here |
+| `ANTHROPIC_API_KEY` **or** `OPENROUTER_API_KEY` | terratrace repo → Actions secrets | — | `AnthropicProvider` falls back to `OPENROUTER_API_KEY` automatically if `ANTHROPIC_API_KEY` isn't set — no code difference, just which one you set |
+| `CHECKOUT_TOKEN` | terratrace repo → Actions secrets | classic PAT, `repo` scope | lets the workflow check out **private** target repos — the default `GITHUB_TOKEN` only sees the terratrace repo itself. Not needed for public target repos. |
+| `GITHUB_DISPATCH_TOKEN` | **Vercel** project env vars | classic PAT, `repo` scope | lets the dashboard's "Add repo" route call `workflow_dispatch` |
+| `GITHUB_SCANNER_REPO` | Vercel project env vars (optional) | — | defaults to `ajaysinghio/terratrace` if unset |
+
+Create PATs at <https://github.com/settings/tokens> → "Generate new token
+(classic)". A classic PAT scoped to `repo` grants access to *all* your
+repos, not just terratrace/orders-service/infra — fine for a prototype,
+worth narrowing to a fine-grained PAT scoped to just the relevant repos
+before this goes further than a demo.
+
+**Known limitations, not yet solved:**
+- Cost/carbon correlation matches by AWS *service* only
+  (`RULE_SERVICE_MAP` in `packages/core/src/carbon/correlate.ts`), not by
+  resource tag — if two projects share a service (e.g. both have EC2
+  findings), the same account-wide EC2 usage gets attributed to *both*,
+  which double-counts if summed org-wide. Fine for a single-account demo;
+  a real multi-repo deployment needs to filter `UsageRecord`s by
+  `resourceTags` per project before correlating.
+- Scanning cannot run inside the Vercel-deployed dashboard itself —
+  `PythonAnalyzer`'s native tree-sitter bindings break Turbopack's bundler
+  ("asset is not placeable in ESM chunks"), Semgrep is a separate Python
+  binary the serverless runtime doesn't have, and there's no `git` to
+  clone an arbitrary target repo. That's why scanning is a GitHub Actions
+  workflow, not a dashboard API route.
+- `packages/github-action/dist` (the *distributable*, referenced via
+  `uses: ajaysinghio/terratrace/packages/github-action@main` from another
+  repo's own workflow) only has darwin-arm64 tree-sitter prebuilds
+  committed — it will fail on the default `ubuntu-latest` runner. See the
+  README's GitHub Action section for the build-from-source workaround this
+  repo's own workflows use instead.
+
 ## Repo layout
 
 ```

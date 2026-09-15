@@ -123,6 +123,12 @@ export default async function HomePage({
 
       {rank >= ROLE_RANK.manager && (
         <>
+          <div className="dashboard-toolbar">
+            <Link href={`/pipeline?view=${role}`} className="button">
+              Pipeline status →
+            </Link>
+          </div>
+
           {rank >= ROLE_RANK.engineer &&
             (() => {
               const neediest = [...summaries].sort(

@@ -265,8 +265,8 @@ nothing is written back to GitHub with it.
 
 ### GitHub Action — build and publish
 
-The Action runs a committed bundle, not source — there's no build step at
-Action-invocation time. Build it before tagging/pushing a release:
+The Action is *meant* to run a committed bundle (`packages/github-action/dist`),
+built with:
 
 ```bash
 pnpm --filter @terratrace/github-action build
@@ -274,12 +274,19 @@ git add packages/github-action/dist
 git commit -m "build: github-action dist"
 ```
 
-Then reference it from any workflow (in this repo or another one that can
-reach it). The Action has **two flows** driven by the triggering event:
+**Known limitation — the committed dist is currently platform-locked.**
+`tree-sitter`/`tree-sitter-python` ship native `.node` binaries, and `ncc`
+only bundles whichever prebuild happens to be installed on the machine that
+ran the build. If that dist is committed from a Mac (as it is today —
+`darwin-arm64`), `uses: ajaysinghio/terratrace/packages/github-action@main`
+**will fail at runtime on `ubuntu-latest`** (GitHub's default runner) with a
+native-module load error. Fixing this properly needs a CI job that builds on
+each target OS/arch and merges the prebuilds — not done yet.
 
-**1. PR comment flow** (`pull_request` events) — reads the changed `.py`
-files from the checkout and posts findings + explanations as a PR comment.
-No branches, no fix PRs.
+**Until that's fixed, build from source in your own workflow instead** (this
+is exactly what this repo's own `.github/workflows/terratrace-fix.yml` and
+`.github/workflows/scan-repo.yml` do, and it's the only path that's actually
+been run and confirmed working end-to-end):
 
 ```yaml
 # .github/workflows/terratrace-pr.yml
@@ -296,42 +303,48 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.sha }}
-      - uses: ajaysinghio/terratrace/packages/github-action@main
+
+      # Build fresh from source — `pnpm install` on this runner pulls the
+      # correct tree-sitter linux-x64 prebuild automatically, sidestepping
+      # the committed dist's darwin-arm64-only limitation above.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - uses: pnpm/action-setup@v4
+        with:
+          version: "11.22.0"
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+
+      # Semgrep is a Python package, not vendored in the build — the
+      # analyzer fails loud on a missing PATH binary if this step is skipped.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install semgrep
+
+      - uses: ./packages/github-action
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
+          # Set exactly one of these — the Action fails if neither is set.
           anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
+          # openrouter-api-key: ${{ secrets.OPENROUTER_API_KEY }}
 ```
 
-**2. Fix-PR flow** (`push` to default, `schedule`, or `workflow_dispatch`) —
+The Action has **two flows** driven by the triggering event — the workflow
+above is the **PR comment flow** (`pull_request` events): reads the changed
+`.py` files from the checkout and posts findings + explanations as a PR
+comment, no branches, no fix PRs.
+
+**Fix-PR flow** (`push` to default, `schedule`, or `workflow_dispatch`) —
 scans every `.py` file in the repo, asks the LLM for a fix diff per finding,
 validates each diff in-memory (applies it and re-analyzes) with up to 2
 retries, and opens one PR per validated fix against the default branch. Each
 PR is keyed by an idempotency label `terratrace:<hash>` where `hash` covers
 `ruleId + filePath + snippet`, so re-runs never open duplicate PRs for the
-same unresolved finding.
-
-```yaml
-# .github/workflows/terratrace-fix.yml
-name: TerraTrace (fix PRs)
-on:
-  push:
-    branches: [main]
-  schedule:
-    - cron: "0 6 * * 1"   # Monday 06:00 UTC
-  workflow_dispatch:
-permissions:
-  contents: write
-  pull-requests: write
-jobs:
-  scan:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: ajaysinghio/terratrace/packages/github-action@main
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
-```
+same unresolved finding. Same build-from-source steps as above, just with a
+different `on:` trigger and the fix-PR permissions — see
+`.github/workflows/terratrace-fix.yml` for the full, working example.
 
 The `actions/checkout` step is required for both flows — the Action reads
 Python source from the local checkout rather than the GitHub Contents API.

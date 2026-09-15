@@ -1,5 +1,10 @@
 name: TerraTrace (scan a registered repo)
 
+# Custom per-run title so GitHub's runs API (and the dashboard's Pipeline
+# page, which reads it as display_title) shows which project each run
+# scanned instead of just the workflow name.
+run-name: "Scan ${{ inputs.repo_owner }}/${{ inputs.repo_name }} → ${{ inputs.project_id }}"
+
 # Central scan runner — everything a scan needs (semgrep, the CLI build,
 # OPENROUTER_API_KEY, DATABASE_URL) lives only here, in terratrace's own
 # repo. A target repo (e.g. orders-service, infra) needs zero configuration
