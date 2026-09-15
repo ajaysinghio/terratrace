@@ -1,15 +1,8 @@
 import { NextResponse } from "next/server";
 import { dbProjectExists, dbRegisterProject, isDbConfigured } from "../../../lib/db";
+import { parseGithubRepoUrl } from "../../../lib/scanTrigger";
 
 export const dynamic = "force-dynamic";
-
-function parseGithubRepoUrl(input: string): { owner: string; repo: string; url: string } | null {
-  const trimmed = input.trim();
-  const match = trimmed.match(/^https?:\/\/github\.com\/([^/\s]+)\/([^/\s]+?)(?:\.git)?\/?$/);
-  if (!match) return null;
-  const [, owner, repo] = match;
-  return { owner, repo, url: `https://github.com/${owner}/${repo}` };
-}
 
 function slugify(input: string): string {
   return input
@@ -18,61 +11,13 @@ function slugify(input: string): string {
     .replace(/^-+|-+$/g, "");
 }
 
-const SCANNER_REPO = process.env.GITHUB_SCANNER_REPO ?? "ajaysinghio/terratrace";
-
 /**
- * Fires .github/workflows/scan-repo.yml in the terratrace repo via GitHub's
- * workflow_dispatch API — the actual scan runs there (checked-out target
- * repo, semgrep, ANTHROPIC_API_KEY, DATABASE_URL all centralized in that one
- * workflow; see its header comment). Returns true if the dispatch call
- * succeeded, false if it's not configured or GitHub rejected it — callers
- * fall back to manual instructions either way, so a dispatch failure here
- * should never block registering the project.
- */
-async function triggerScanWorkflow(params: {
-  repoOwner: string;
-  repoName: string;
-  projectId: string;
-  projectName: string;
-}): Promise<boolean> {
-  const token = process.env.GITHUB_DISPATCH_TOKEN;
-  if (!token) return false;
-
-  try {
-    const response = await fetch(
-      `https://api.github.com/repos/${SCANNER_REPO}/actions/workflows/scan-repo.yml/dispatches`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          Accept: "application/vnd.github+json",
-          "X-GitHub-Api-Version": "2022-11-28",
-        },
-        body: JSON.stringify({
-          ref: "main",
-          inputs: {
-            repo_owner: params.repoOwner,
-            repo_name: params.repoName,
-            project_id: params.projectId,
-            project_name: params.projectName,
-          },
-        }),
-      }
-    );
-    return response.ok;
-  } catch {
-    return false;
-  }
-}
-
-/**
- * Registers a repo to scan — the "Add repo" flow. Deliberately doesn't scan
- * anything itself: CodeAnalyzer needs the repo checked out somewhere with
- * tree-sitter/semgrep available, which this serverless route doesn't have
- * (see README's Vercel notes). Instead it reserves the project row and
- * tries to auto-trigger the central scan-repo.yml workflow (see
- * triggerScanWorkflow above); if that's not configured yet, it falls back
- * to handing back the equivalent manual commands.
+ * Registers a repo to track — the "Add repo" flow. Deliberately just
+ * registers: scanning is a separate, explicit action (POST
+ * /api/projects/[projectId]/scan, same endpoint a "Rescan" button calls
+ * later) so a repo can sit registered without a scan queued the moment
+ * it's added — no surprise CI run, no surprise LLM spend, just because
+ * someone typed a URL in.
  */
 export async function POST(request: Request) {
   if (!isDbConfigured()) {
@@ -105,32 +50,5 @@ export async function POST(request: Request) {
 
   await dbRegisterProject({ id: projectId, name: projectName, repoUrl: parsed.url });
 
-  const dispatched = await triggerScanWorkflow({
-    repoOwner: parsed.owner,
-    repoName: parsed.repo,
-    projectId,
-    projectName,
-  });
-
-  return NextResponse.json({
-    projectId,
-    projectName,
-    repoUrl: parsed.url,
-    dispatched,
-    scannerActionsUrl: `https://github.com/${SCANNER_REPO}/actions`,
-    // Only shown by the UI when dispatched is false (GITHUB_DISPATCH_TOKEN
-    // not configured yet) — fast-glob and git-remote detection both resolve
-    // relative to process.cwd(), so the scan has to actually run with the
-    // target repo as cwd; `pnpm --filter` can't do that since it needs to
-    // run inside the terratrace workspace, hence pointing node at the built
-    // CLI directly.
-    steps: [
-      `git clone ${parsed.url}.git && cd ${parsed.repo}`,
-      `node <path-to-terratrace>/packages/cli/dist/index.js "**/*.{py,java,tf}" ${projectId} "${projectName}"`,
-      // The CLI writes ./scan-output/<id>.json relative to its cwd (the repo
-      // just cloned above, not terratrace) — copy it over before importing.
-      `cp scan-output/${projectId}.json <path-to-terratrace>/scan-output/`,
-      `cd <path-to-terratrace> && node packages/dashboard/scripts/import-scan-output.mjs ${projectId}.json`,
-    ],
-  });
+  return NextResponse.json({ projectId, projectName, repoUrl: parsed.url });
 }

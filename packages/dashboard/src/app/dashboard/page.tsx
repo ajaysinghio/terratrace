@@ -5,6 +5,7 @@ import AccountMenu from "../../components/AccountMenu";
 import AddRepoForm from "../../components/AddRepoForm";
 import GlobalBillingUpload from "../../components/GlobalBillingUpload";
 import RemoveProjectButton from "../../components/RemoveProjectButton";
+import ScanButton from "../../components/ScanButton";
 import { isDbConfigured } from "../../lib/db";
 import { ROLE_RANK, parseRole } from "../../lib/role";
 import { loadAllProjects } from "../../lib/projects";
@@ -168,14 +169,25 @@ export default async function HomePage({
 
               return (
                 <Link key={project.id} href={href} className="project-card">
-                  {isDbConfigured() && <RemoveProjectButton projectId={project.id} projectName={project.name} />}
+                  {isDbConfigured() && (
+                    <div className="project-card__actions">
+                      {!pending && <ScanButton projectId={project.id} label="Rescan" variant="icon" stopPropagation />}
+                      <RemoveProjectButton projectId={project.id} projectName={project.name} />
+                    </div>
+                  )}
                   <div className="project-card__header">
                     <h2>{project.name}</h2>
                     <span className="project-card__count">
                       {pending ? "not yet scanned" : `${stats.total} finding(s)`}
                     </span>
                   </div>
-                  {!pending && (
+                  {pending ? (
+                    isDbConfigured() && (
+                      <div className="project-card__pending-action">
+                        <ScanButton projectId={project.id} label="▶ Scan now" stopPropagation />
+                      </div>
+                    )
+                  ) : (
                     <>
                       <div className="project-card__bar">
                         {high > 0 && (

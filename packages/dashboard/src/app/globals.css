@@ -628,10 +628,17 @@ a.stat-tile:visited {
   border-color: var(--accent);
 }
 
-.project-card__remove {
+.project-card__actions {
   position: absolute;
   top: 0.5rem;
   right: 0.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.project-card__remove,
+.project-card__scan {
   width: 1.5rem;
   height: 1.5rem;
   display: flex;
@@ -650,6 +657,21 @@ a.stat-tile:visited {
   color: #f85149;
   border-color: #f85149;
   background: color-mix(in srgb, #f85149 12%, transparent);
+}
+
+.project-card__scan:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.project-card__pending-action {
+  margin-top: 0.75rem;
+}
+
+.project-card__pending-action .button {
+  font-size: 0.8rem;
+  padding: 0.35rem 0.7rem;
 }
 
 .project-card__header {

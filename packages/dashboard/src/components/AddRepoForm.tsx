@@ -2,25 +2,21 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import ScanButton from "./ScanButton";
 
 interface RegisterResult {
   projectId: string;
   projectName: string;
   repoUrl: string;
-  dispatched: boolean;
-  scannerActionsUrl: string;
-  steps: string[];
 }
 
 /**
- * Registers a repo to scan — doesn't scan it itself. CodeAnalyzer needs the
- * repo checked out with tree-sitter/semgrep available, which this dashboard
- * (deployed on Vercel) doesn't have; see api/projects/route.ts. It tries to
- * auto-trigger the central scan-repo.yml GitHub Actions workflow, which does
- * have all of that — falls back to showing manual commands only if that
- * dispatch isn't configured (GITHUB_DISPATCH_TOKEN) yet. Kept to
- * Manager/Engineer views (see dashboard home page) since it's a setup
- * action, not something an executive would do.
+ * Registers a repo to track — a deliberately separate step from scanning it
+ * (see ScanButton). Adding a repo shouldn't silently queue a CI run and LLM
+ * spend the moment someone types a URL in; scanning is its own explicit
+ * click, right here after registering or later as "Rescan" on the project
+ * card. Kept to Manager/Engineer views (see dashboard home page) since it's
+ * a setup action, not something an executive would do.
  */
 export default function AddRepoForm() {
   const router = useRouter();
@@ -73,8 +69,8 @@ export default function AddRepoForm() {
     <div className="card add-repo-form__card">
       <h2>Add a repo</h2>
       <p className="card__hint">
-        Registers a repo to scan — this dashboard can&apos;t run the scan itself (it needs the repo checked out with
-        the code analyzer available), so you&apos;ll get the exact commands to run it after adding.
+        Registers a repo to track. Scanning is a separate step — you&apos;ll get a &quot;Scan now&quot; button right
+        after adding.
       </p>
       <form onSubmit={handleSubmit} className="add-repo-form">
         <input
@@ -94,22 +90,11 @@ export default function AddRepoForm() {
       {status === "error" && <p className="billing-upload__error">{message}</p>}
       {status === "done" && result && (
         <div className="billing-upload__success">
-          {result.dispatched ? (
-            <p>
-              Added <strong>{result.projectName}</strong> and triggered the scan — check the{" "}
-              <a href={result.scannerActionsUrl} target="_blank" rel="noopener noreferrer">
-                terratrace repo&apos;s Actions tab
-              </a>{" "}
-              for progress. It&apos;ll show up as &quot;not yet scanned&quot; here until that run finishes.
-            </p>
-          ) : (
-            <p>
-              Added <strong>{result.projectName}</strong> — it&apos;ll show up as &quot;not yet scanned&quot; until
-              you run the scan (auto-trigger isn&apos;t configured yet — set GITHUB_DISPATCH_TOKEN to enable it).
-              Run these from your machine:
-            </p>
-          )}
-          {!result.dispatched && <pre className="add-repo-form__steps">{result.steps.join("\n")}</pre>}
+          <p>
+            Added <strong>{result.projectName}</strong> — it&apos;ll show up as &quot;not yet scanned&quot; until you
+            run a scan.
+          </p>
+          <ScanButton projectId={result.projectId} label="Scan now" />
         </div>
       )}
     </div>
