@@ -45,12 +45,18 @@ async function upsertProject(sql, { project, findings }) {
 
   for (const finding of findings) {
     const estimate = finding.estimate;
+    // billing_upload_id is always reset to null here — a fresh scan's own
+    // estimate (CLI's sample-data fallback, since no CUR is wired into the
+    // scan step) is never tied to a dashboard-tracked upload. Leaving a
+    // stale pointer from a previous CUR upload would make
+    // BillingProvenanceBadge wrongly claim "real CUR data" for numbers a
+    // rescan just overwrote.
     await sql`
       insert into findings (
         id, project_id, rule_id, severity, file_path, start_line, end_line, snippet, message,
         explanation, suggested_fix_diff, idempotency_key, autofix,
         estimate_kg_co2e, estimate_methodology, estimate_grid_intensity_gco2_per_kwh,
-        estimate_confidence, estimate_cost_usd
+        estimate_confidence, estimate_cost_usd, billing_upload_id
       )
       values (
         ${finding.id}, ${project.id}, ${finding.ruleId}, ${finding.severity}, ${finding.filePath},
@@ -58,7 +64,7 @@ async function upsertProject(sql, { project, findings }) {
         ${finding.explanation ?? null}, ${finding.suggestedFixDiff ?? null}, ${finding.idempotencyKey ?? null},
         ${finding.autofix ? JSON.stringify(finding.autofix) : null},
         ${estimate?.kgCO2e ?? null}, ${estimate?.methodology ?? null}, ${estimate?.gridIntensityGco2PerKwh ?? null},
-        ${estimate?.confidence ?? null}, ${estimate?.costUsd ?? null}
+        ${estimate?.confidence ?? null}, ${estimate?.costUsd ?? null}, null
       )
       on conflict (project_id, id) do update set
         rule_id = excluded.rule_id,
@@ -76,7 +82,8 @@ async function upsertProject(sql, { project, findings }) {
         estimate_methodology = excluded.estimate_methodology,
         estimate_grid_intensity_gco2_per_kwh = excluded.estimate_grid_intensity_gco2_per_kwh,
         estimate_confidence = excluded.estimate_confidence,
-        estimate_cost_usd = excluded.estimate_cost_usd
+        estimate_cost_usd = excluded.estimate_cost_usd,
+        billing_upload_id = excluded.billing_upload_id
     `;
   }
 }

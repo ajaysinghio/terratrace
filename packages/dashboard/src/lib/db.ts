@@ -167,7 +167,11 @@ export async function dbRegisterProject(project: ProjectMeta): Promise<void> {
 /**
  * Upserts a project and its findings in one call — the write side of the
  * scan → dashboard handoff (CLI/GitHub Action output landing in the DB
- * instead of scan-output/<project-id>.json).
+ * instead of scan-output/<project-id>.json). Always resets
+ * billing_upload_id to null: a fresh scan's own estimate is never tied to a
+ * dashboard-tracked CUR upload, and leaving a stale pointer from a previous
+ * upload would make BillingProvenanceBadge wrongly claim "real CUR data"
+ * for numbers this rescan just overwrote.
  */
 export async function dbUpsertProject(data: ProjectData): Promise<void> {
   const db = sql();
@@ -189,7 +193,7 @@ export async function dbUpsertProject(data: ProjectData): Promise<void> {
         id, project_id, rule_id, severity, file_path, start_line, end_line, snippet, message,
         explanation, suggested_fix_diff, idempotency_key, autofix,
         estimate_kg_co2e, estimate_methodology, estimate_grid_intensity_gco2_per_kwh,
-        estimate_confidence, estimate_cost_usd
+        estimate_confidence, estimate_cost_usd, billing_upload_id
       )
       values (
         ${finding.id}, ${project.id}, ${finding.ruleId}, ${finding.severity}, ${finding.filePath},
@@ -197,7 +201,7 @@ export async function dbUpsertProject(data: ProjectData): Promise<void> {
         ${finding.explanation ?? null}, ${finding.suggestedFixDiff ?? null}, ${finding.idempotencyKey ?? null},
         ${finding.autofix ? JSON.stringify(finding.autofix) : null},
         ${estimate?.kgCO2e ?? null}, ${estimate?.methodology ?? null}, ${estimate?.gridIntensityGco2PerKwh ?? null},
-        ${estimate?.confidence ?? null}, ${estimate?.costUsd ?? null}
+        ${estimate?.confidence ?? null}, ${estimate?.costUsd ?? null}, null
       )
       on conflict (project_id, id) do update set
         rule_id = excluded.rule_id,
@@ -215,7 +219,8 @@ export async function dbUpsertProject(data: ProjectData): Promise<void> {
         estimate_methodology = excluded.estimate_methodology,
         estimate_grid_intensity_gco2_per_kwh = excluded.estimate_grid_intensity_gco2_per_kwh,
         estimate_confidence = excluded.estimate_confidence,
-        estimate_cost_usd = excluded.estimate_cost_usd
+        estimate_cost_usd = excluded.estimate_cost_usd,
+        billing_upload_id = excluded.billing_upload_id
     `;
   }
 }
@@ -295,13 +300,21 @@ export async function dbApplyEstimates(
   }
 }
 
+/**
+ * Latest upload whose correlation is still live — i.e. at least one current
+ * finding's billing_upload_id still points to it. billing_uploads is a
+ * history table; a row surviving there after a rescan reset every
+ * finding's billing_upload_id to null (see dbUpsertProject) would make this
+ * wrongly report "real CUR data" for numbers the rescan already overwrote.
+ */
 export async function dbGetLatestBillingUpload(projectId: string): Promise<BillingUpload | null> {
   const db = sql();
   const rows = (await db`
-    select id, project_id, source_type, filename, record_count, uploaded_at
-    from billing_uploads
-    where project_id = ${projectId}
-    order by uploaded_at desc
+    select bu.id, bu.project_id, bu.source_type, bu.filename, bu.record_count, bu.uploaded_at
+    from billing_uploads bu
+    where bu.project_id = ${projectId}
+      and exists (select 1 from findings f where f.billing_upload_id = bu.id)
+    order by bu.uploaded_at desc
     limit 1
   `) as Array<{
     id: string;
