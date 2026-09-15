@@ -1,7 +1,9 @@
 import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
+import BillingProvenanceBadge from "../../../components/BillingProvenanceBadge";
 import { OverviewSection } from "../../../components/Dashboard";
 import ProjectShell from "../../../components/ProjectShell";
+import { dbGetLatestBillingUpload, isDbConfigured } from "../../../lib/db";
 import { parseRole } from "../../../lib/role";
 import { loadProject } from "../../../lib/projects";
 import { computeRecommendations, computeServiceBreakdown } from "../../../lib/roleStats";
@@ -31,6 +33,9 @@ export default async function ProjectOverviewPage({
     notFound();
   }
 
+  const latestUpload = isDbConfigured() ? await dbGetLatestBillingUpload(projectId) : null;
+  const hasEstimates = data.findings.some((f) => f.estimate);
+
   return (
     <ProjectShell
       projectId={projectId}
@@ -40,6 +45,7 @@ export default async function ProjectOverviewPage({
       role={role}
       login={session?.login}
     >
+      {isDbConfigured() && <BillingProvenanceBadge latestUpload={latestUpload} hasEstimates={hasEstimates} />}
       <OverviewSection
         projectId={projectId}
         role={role}

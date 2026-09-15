@@ -1,6 +1,7 @@
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import type { EnrichedFinding } from "@terratrace/core";
+import { dbLoadAllProjects, dbLoadProject, isDbConfigured } from "./db";
 import { computeStats, type DashboardStats } from "./stats";
 
 export interface ProjectMeta {
@@ -22,8 +23,9 @@ export interface ProjectSummary {
 
 // Each `pnpm scan` run (one per repo) writes ./scan-output/<project-id>.json
 // at the workspace root: { project: {...}, findings: EnrichedFinding[] }.
-// A company running this against 100s of repos would have CI push one file
-// per repo here (or into whatever store replaces this directory read).
+// This directory read is the fallback for local dev without DATABASE_URL
+// set — once it's configured, dbLoadAllProjects()/dbLoadProject() (db.ts)
+// take over so uploaded CUR data can be re-correlated without a rescan.
 const SCAN_OUTPUT_DIR = path.join(process.cwd(), "..", "..", "scan-output");
 
 async function readProjectFile(filePath: string): Promise<ProjectData | null> {
@@ -37,7 +39,7 @@ async function readProjectFile(filePath: string): Promise<ProjectData | null> {
   }
 }
 
-export async function loadAllProjects(): Promise<ProjectData[]> {
+async function loadAllProjectsFromDisk(): Promise<ProjectData[]> {
   let entries: string[];
   try {
     entries = await readdir(SCAN_OUTPUT_DIR);
@@ -50,6 +52,10 @@ export async function loadAllProjects(): Promise<ProjectData[]> {
   return projects.filter((p): p is ProjectData => p !== null);
 }
 
+export async function loadAllProjects(): Promise<ProjectData[]> {
+  return isDbConfigured() ? dbLoadAllProjects() : loadAllProjectsFromDisk();
+}
+
 export async function loadProjectSummaries(): Promise<ProjectSummary[]> {
   const projects = await loadAllProjects();
   return projects
@@ -58,6 +64,7 @@ export async function loadProjectSummaries(): Promise<ProjectSummary[]> {
 }
 
 export async function loadProject(projectId: string): Promise<ProjectData | null> {
+  if (isDbConfigured()) return dbLoadProject(projectId);
   const filePath = path.join(SCAN_OUTPUT_DIR, `${projectId}.json`);
   return readProjectFile(filePath);
 }

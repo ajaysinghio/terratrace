@@ -736,10 +736,14 @@ function FileFindingsList({
                     </div>
                     <pre className="finding__snippet">{finding.snippet}</pre>
                     <p className="finding__message">{finding.message}</p>
-                    {finding.estimate && (
+                    {finding.estimate ? (
                       <p className="finding__message">
                         <strong>Estimated impact:</strong> {finding.estimate.kgCO2e.toFixed(4)} kgCO2e (
                         {finding.estimate.confidence} confidence)
+                      </p>
+                    ) : (
+                      <p className="finding__message finding__message--no-estimate">
+                        No billing usage found for this finding&apos;s service yet — recommendation still applies.
                       </p>
                     )}
                     {finding.explanation && (

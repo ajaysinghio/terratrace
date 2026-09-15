@@ -13,6 +13,10 @@
     "./correlate": {
       "types": "./dist/carbon/correlate.d.ts",
       "default": "./dist/carbon/correlate.js"
+    },
+    "./billing": {
+      "types": "./dist/billing/AWSCurSource.d.ts",
+      "default": "./dist/billing/AWSCurSource.js"
     }
   },
   "files": [

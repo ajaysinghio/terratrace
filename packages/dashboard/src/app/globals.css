@@ -320,6 +320,88 @@ a.stat-tile:visited {
   margin: -0.5rem 0 0.75rem;
 }
 
+.billing-upload__input {
+  font-size: 0.85rem;
+}
+
+.add-repo-form__trigger {
+  margin-top: 1.5rem;
+}
+
+.add-repo-form {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.add-repo-form__input {
+  flex: 1;
+  min-width: 240px;
+  padding: 0.45rem 0.7rem;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg-inset);
+  color: var(--text);
+  font-size: 0.85rem;
+}
+
+.add-repo-form__steps {
+  background: var(--bg-inset);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.75rem;
+  margin-top: 0.5rem;
+  font-size: 0.8rem;
+  color: var(--text);
+  white-space: pre-wrap;
+  overflow-x: auto;
+}
+
+.billing-provenance {
+  font-size: 0.85rem;
+  font-weight: 500;
+  padding: 0.5rem 0.75rem;
+  border-radius: 8px;
+  margin: 0 0 0.75rem;
+}
+
+.billing-provenance--real {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.billing-provenance--unknown {
+  color: #d29922;
+  background: color-mix(in srgb, #d29922 12%, transparent);
+}
+
+.billing-provenance--none {
+  color: var(--text-muted);
+  background: var(--bg-inset);
+}
+
+.billing-upload__error {
+  color: #f85149;
+  font-size: 0.85rem;
+  margin-top: 0.6rem;
+}
+
+.billing-upload__success {
+  color: var(--accent);
+  font-size: 0.85rem;
+  margin-top: 0.6rem;
+}
+
+.billing-upload__project-list {
+  margin: 0.5rem 0 0;
+  padding-left: 1.1rem;
+  color: var(--text);
+}
+
+.billing-upload__project-list li {
+  margin-bottom: 0.2rem;
+}
+
 .empty-chart {
   color: var(--text-muted);
   padding: 2rem 0;
@@ -444,6 +526,10 @@ a.stat-tile:visited {
 .finding__explanation {
   font-size: 0.9rem;
   color: var(--text-muted);
+}
+
+.finding__message--no-estimate {
+  font-style: italic;
 }
 
 .finding__pr-link {

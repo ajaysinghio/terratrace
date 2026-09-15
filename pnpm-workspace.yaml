@@ -1,6 +1,7 @@
 packages:
   - "packages/*"
 allowBuilds:
+  bufferutil: false
   tree-sitter: true
   tree-sitter-python: true
 minimumReleaseAgeExclude:

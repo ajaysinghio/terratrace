@@ -2,15 +2,15 @@
   "project": {
     "id": "infra",
     "name": "Infra",
-    "repoUrl": "https://github.com/ajaysinghio/terratrace",
-    "scannedAt": "2026-09-10T10:27:34.374Z"
+    "repoUrl": "https://github.com/ajaysinghio/infra",
+    "scannedAt": "2026-09-15T09:06:52.485Z"
   },
   "findings": [
     {
-      "id": "fb1907dfa7cc585d",
+      "id": "675e642aa9aa4b03",
       "ruleId": "no-autoscaling-floor",
       "severity": "medium",
-      "filePath": "./sample-repo/terraform/app_asg.tf",
+      "filePath": "app_asg.tf",
       "startLine": 4,
       "endLine": 10,
       "snippet": "resource \"aws_autoscaling_group\" \"app\" {\n  name                = \"app-asg\"\n  min_size            = 6\n  max_size            = 6\n  desired_capacity    = 6\n  vpc_zone_identifier = [\"subnet-abc\"]\n}",
@@ -22,13 +22,13 @@
         "confidence": "medium",
         "costUsd": 306.25
       },
-      "idempotencyKey": "5fdbec0f5f2f"
+      "idempotencyKey": "675e642aa9aa"
     },
     {
-      "id": "7508afd60d159577",
+      "id": "a45442e8e4925fb5",
       "ruleId": "missing-lifecycle-policy",
       "severity": "medium",
-      "filePath": "./sample-repo/terraform/logs_bucket.tf",
+      "filePath": "logs_bucket.tf",
       "startLine": 4,
       "endLine": 6,
       "snippet": "resource \"aws_s3_bucket\" \"logs\" {\n  bucket = \"terratrace-sample-logs\"\n}",
@@ -40,13 +40,13 @@
         "confidence": "medium",
         "costUsd": 96.6
       },
-      "idempotencyKey": "a1214c9d9719"
+      "idempotencyKey": "a45442e8e492"
     },
     {
-      "id": "1ae9a6eebc9a8ea9",
+      "id": "b0b895b3daf3954f",
       "ruleId": "oversized-instance-type",
       "severity": "medium",
-      "filePath": "./sample-repo/terraform/web_instance.tf",
+      "filePath": "web_instance.tf",
       "startLine": 4,
       "endLine": 11,
       "snippet": "resource \"aws_instance\" \"web\" {\n  ami           = \"ami-0abcdef1234567890\"\n  instance_type = \"m5.4xlarge\"\n\n  tags = {\n    Name = \"web\"\n  }\n}",
@@ -58,7 +58,7 @@
         "confidence": "medium",
         "costUsd": 306.25
       },
-      "idempotencyKey": "341478cba418"
+      "idempotencyKey": "b0b895b3daf3"
     }
   ]
 }

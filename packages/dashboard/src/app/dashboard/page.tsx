@@ -2,6 +2,9 @@ import Link from "next/link";
 import { cookies } from "next/headers";
 import { ImpactBarChart, ServiceBreakdownChart } from "../../components/Dashboard";
 import AccountMenu from "../../components/AccountMenu";
+import AddRepoForm from "../../components/AddRepoForm";
+import GlobalBillingUpload from "../../components/GlobalBillingUpload";
+import { isDbConfigured } from "../../lib/db";
 import { ROLE_RANK, parseRole } from "../../lib/role";
 import { loadAllProjects } from "../../lib/projects";
 import { computeServiceBreakdown } from "../../lib/roleStats";
@@ -85,6 +88,8 @@ export default async function HomePage({
       </header>
       <AccountMenu role={role} login={session?.login} />
 
+      {isDbConfigured() && <GlobalBillingUpload />}
+
       {/* Executive baseline: two org-wide "where is the exposure" charts —
           by project and by service. A CEO opening this page sees these
           first, with no repo-browsing grid forced on them — but a bar here
@@ -139,6 +144,7 @@ export default async function HomePage({
 
           <section className="project-grid">
             {summaries.map(({ project, stats }) => {
+              const pending = !project.scannedAt;
               const high = stats.severityCounts.find((s) => s.severity === "high")?.count ?? 0;
               const medium = stats.severityCounts.find((s) => s.severity === "medium")?.count ?? 0;
               const low = stats.severityCounts.find((s) => s.severity === "low")?.count ?? 0;
@@ -156,25 +162,37 @@ export default async function HomePage({
                 <Link key={project.id} href={href} className="project-card">
                   <div className="project-card__header">
                     <h2>{project.name}</h2>
-                    <span className="project-card__count">{stats.total} finding(s)</span>
+                    <span className="project-card__count">
+                      {pending ? "not yet scanned" : `${stats.total} finding(s)`}
+                    </span>
                   </div>
-                  <div className="project-card__bar">
-                    {high > 0 && (
-                      <span style={{ width: `${(high / total) * 100}%`, background: SEVERITY_COLOR.high }} />
-                    )}
-                    {medium > 0 && (
-                      <span style={{ width: `${(medium / total) * 100}%`, background: SEVERITY_COLOR.medium }} />
-                    )}
-                    {low > 0 && <span style={{ width: `${(low / total) * 100}%`, background: SEVERITY_COLOR.low }} />}
-                  </div>
-                  <div className="project-card__stats">
-                    <span>{stats.filesAffected} file(s) affected</span>
-                    <span>{stats.hasCarbonEstimate ? `${stats.totalKgCO2e!.toFixed(3)} kgCO2e` : "no carbon data"}</span>
-                  </div>
+                  {!pending && (
+                    <>
+                      <div className="project-card__bar">
+                        {high > 0 && (
+                          <span style={{ width: `${(high / total) * 100}%`, background: SEVERITY_COLOR.high }} />
+                        )}
+                        {medium > 0 && (
+                          <span style={{ width: `${(medium / total) * 100}%`, background: SEVERITY_COLOR.medium }} />
+                        )}
+                        {low > 0 && (
+                          <span style={{ width: `${(low / total) * 100}%`, background: SEVERITY_COLOR.low }} />
+                        )}
+                      </div>
+                      <div className="project-card__stats">
+                        <span>{stats.filesAffected} file(s) affected</span>
+                        <span>
+                          {stats.hasCarbonEstimate ? `${stats.totalKgCO2e!.toFixed(3)} kgCO2e` : "no carbon data"}
+                        </span>
+                      </div>
+                    </>
+                  )}
                 </Link>
               );
             })}
           </section>
+
+          {isDbConfigured() && <AddRepoForm />}
         </>
       )}
     </div>

@@ -1,0 +1,89 @@
+name: TerraTrace (scan a registered repo)
+
+# Central scan runner — everything a scan needs (semgrep, the CLI build,
+# OPENROUTER_API_KEY, DATABASE_URL) lives only here, in terratrace's own
+# repo. A target repo (e.g. orders-service, infra) needs zero configuration
+# of its own: no workflow file, no secrets — this workflow checks it out
+# itself, using CHECKOUT_TOKEN below.
+#
+# Triggered by the dashboard's "Add repo" flow (see
+# packages/dashboard/src/app/api/projects/route.ts), which calls GitHub's
+# workflow_dispatch API with these same inputs. Can also be run by hand from
+# the Actions tab for a repo that's already registered.
+on:
+  workflow_dispatch:
+    inputs:
+      repo_owner:
+        description: "GitHub owner/org of the repo to scan"
+        required: true
+      repo_name:
+        description: "Repo name to scan"
+        required: true
+      project_id:
+        description: "TerraTrace project id (matches the dashboard's registered project)"
+        required: true
+      project_name:
+        description: "Display name for the dashboard"
+        required: true
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout terratrace (scanner + dashboard DB scripts)
+        uses: actions/checkout@v4
+        with:
+          path: terratrace
+
+      - name: Checkout target repo
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.repo_owner }}/${{ inputs.repo_name }}
+          # A fine-grained PAT with read access to the target repo — the
+          # default GITHUB_TOKEN is scoped to terratrace only and can't see
+          # other repos, private ones especially. Not needed for a public
+          # target repo, but harmless to always pass.
+          token: ${{ secrets.CHECKOUT_TOKEN }}
+          path: target-repo
+
+      # Build fresh from source rather than a committed dist/ — pnpm install
+      # on this runner pulls tree-sitter's linux-x64 prebuild automatically,
+      # sidestepping the platform-mismatch a Mac-built dist would hit here.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - uses: pnpm/action-setup@v4
+        with:
+          version: "11.22.0"
+      - run: pnpm install --frozen-lockfile
+        working-directory: terratrace
+      - run: pnpm --filter @terratrace/core build && pnpm --filter @terratrace/cli build
+        working-directory: terratrace
+
+      # Semgrep is a Python package, not vendored in the CLI build — the
+      # analyzer fails loud on missing PATH binary if this step is skipped.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install semgrep
+
+      - name: Scan target repo
+        working-directory: target-repo
+        env:
+          TERRATRACE_REPO_URL: https://github.com/${{ inputs.repo_owner }}/${{ inputs.repo_name }}
+          # AnthropicProvider falls back to OPENROUTER_API_KEY automatically
+          # when ANTHROPIC_API_KEY isn't set (see
+          # packages/core/src/llm/AnthropicProvider.ts) — no code change
+          # needed, just which secret this workflow passes through.
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        run: |
+          node ../terratrace/packages/cli/dist/index.js "**/*.{py,java,tf}" \
+            "${{ inputs.project_id }}" "${{ inputs.project_name }}"
+
+      - name: Push results into the dashboard DB
+        working-directory: terratrace
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          cp ../target-repo/scan-output/${{ inputs.project_id }}.json scan-output/
+          node packages/dashboard/scripts/import-scan-output.mjs ${{ inputs.project_id }}.json
