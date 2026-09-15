@@ -582,6 +582,16 @@ a.stat-tile:visited {
   text-decoration: underline;
 }
 
+.remediate-button {
+  display: block;
+  margin-top: 0.5rem;
+}
+
+.remediate-button .button {
+  font-size: 0.8rem;
+  padding: 0.35rem 0.7rem;
+}
+
 .empty-state {
   max-width: 600px;
   margin: 4rem auto;

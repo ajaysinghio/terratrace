@@ -105,6 +105,16 @@ export interface EnrichedFinding extends CodeFinding {
    * GitHub API call.
    */
   idempotencyKey?: string;
+  /**
+   * Set once the dashboard's on-demand remediation actually opens a PR for
+   * this finding — "in progress", not "fixed". A finding only counts as
+   * remediated once a later rescan no longer detects it (the merged PR
+   * removed the underlying code), which is tracked separately in the
+   * dashboard's DB (see packages/dashboard/db/schema.sql's `remediated_at`)
+   * rather than on this type, since a remediated finding is no longer part
+   * of a fresh scan's output at all.
+   */
+  prUrl?: string;
 }
 
 /** A cloud resource declared in infrastructure-as-code, before it's ever been billed. */

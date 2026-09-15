@@ -43,6 +43,28 @@ async function upsertProject(sql, { project, findings }) {
       scanned_at = excluded.scanned_at
   `;
 
+  // Reconcile against the previous scan before upserting the new one: a
+  // finding active before but absent from this fresh scan either got fixed
+  // (if it had an open PR, that's the merge — mark remediated_at rather
+  // than deleting, so remediation counts survive) or just disappeared with
+  // no PR behind it (stale, delete outright — never tracked as in-progress).
+  const currentIds = findings.map((f) => f.id);
+  await sql`
+    update findings
+    set remediated_at = now()
+    where project_id = ${project.id}
+      and remediated_at is null
+      and pr_url is not null
+      and id != all(${currentIds})
+  `;
+  await sql`
+    delete from findings
+    where project_id = ${project.id}
+      and remediated_at is null
+      and pr_url is null
+      and id != all(${currentIds})
+  `;
+
   for (const finding of findings) {
     const estimate = finding.estimate;
     // billing_upload_id is always reset to null here — a fresh scan's own

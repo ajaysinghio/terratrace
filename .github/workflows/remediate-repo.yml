@@ -1,0 +1,54 @@
+name: TerraTrace (remediate a project)
+
+run-name: "Remediate ${{ inputs.repo_owner }}/${{ inputs.repo_name }} → ${{ inputs.project_id }}${{ inputs.finding_id && format(' (finding {0})', inputs.finding_id) || ' (all ready fixes)' }}"
+
+# Deliberately separate from scan-repo.yml — see that workflow's own header
+# comment. Scanning must never write to a target repo; this workflow only
+# runs when a human explicitly clicks "Raise PRs" or "Create PR" in the
+# dashboard (POST /api/projects/[projectId]/remediate), never automatically
+# from a scan. Only opens PRs for findings that already have a validated
+# suggestedFixDiff (computed during the scan) — no LLM call happens here.
+on:
+  workflow_dispatch:
+    inputs:
+      repo_owner:
+        description: "GitHub owner/org of the repo to open PRs against"
+        required: true
+      repo_name:
+        description: "Repo name"
+        required: true
+      project_id:
+        description: "TerraTrace project id"
+        required: true
+      finding_id:
+        description: "Remediate just this one finding — leave empty to raise PRs for every ready finding in the project"
+        required: false
+
+jobs:
+  remediate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: terratrace
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - uses: pnpm/action-setup@v4
+        with:
+          version: "11.22.0"
+      - run: pnpm install --frozen-lockfile
+        working-directory: terratrace
+
+      - name: Open PRs for ready fixes
+        working-directory: terratrace
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          # Needs write access (contents + pull-requests) on the target
+          # repo, unlike scan-repo.yml's read-only use of this same token —
+          # see CONTRIBUTING.md's secrets table.
+          GITHUB_TOKEN: ${{ secrets.CHECKOUT_TOKEN }}
+        run: |
+          node packages/dashboard/scripts/remediate.mjs \
+            "${{ inputs.project_id }}" "${{ inputs.repo_owner }}" "${{ inputs.repo_name }}" "${{ inputs.finding_id }}"

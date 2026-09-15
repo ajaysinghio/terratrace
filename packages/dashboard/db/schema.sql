@@ -53,9 +53,28 @@ create table if not exists findings (
   -- the provenance link the dashboard uses to show "real CUR" vs "sample
   -- data" vs "not yet correlated" for the numbers on screen.
   billing_upload_id uuid references billing_uploads (id) on delete set null,
+  -- Remediation state. pr_url/pr_opened_at are set once the dashboard's
+  -- on-demand remediation opens a PR for this finding — that alone means
+  -- "in progress", not "fixed". remediated_at is only set later, when a
+  -- rescan no longer detects this finding (the merged PR actually removed
+  -- it from the code) — see the reconciliation step import-scan-output.mjs
+  -- runs before upserting a fresh scan's findings. Rows with
+  -- remediated_at set are kept (not deleted) so remediation counts survive
+  -- across scans; every "active findings" read filters remediated_at is
+  -- null.
+  pr_url text,
+  pr_opened_at timestamptz,
+  remediated_at timestamptz,
   primary key (project_id, id)
 );
 
 create index if not exists findings_project_id_idx on findings (project_id);
 create index if not exists findings_billing_upload_id_idx on findings (billing_upload_id);
 create index if not exists billing_uploads_project_id_idx on billing_uploads (project_id);
+
+-- Idempotent so db:init can re-run against an already-live DB that predates
+-- these columns (create table if not exists above only affects a brand new
+-- database, not one that already has a findings table).
+alter table findings add column if not exists pr_url text;
+alter table findings add column if not exists pr_opened_at timestamptz;
+alter table findings add column if not exists remediated_at timestamptz;

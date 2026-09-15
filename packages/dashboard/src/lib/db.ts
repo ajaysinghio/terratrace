@@ -51,6 +51,7 @@ interface FindingRow {
   estimate_confidence: CarbonEstimate["confidence"] | null;
   estimate_cost_usd: number | null;
   billing_upload_id: string | null;
+  pr_url: string | null;
 }
 
 function toProjectMeta(row: ProjectRow): ProjectMeta {
@@ -92,6 +93,7 @@ function toEnrichedFinding(row: FindingRow): EnrichedFinding {
     explanation: row.explanation ?? undefined,
     suggestedFixDiff: row.suggested_fix_diff ?? undefined,
     idempotencyKey: row.idempotency_key ?? undefined,
+    prUrl: row.pr_url ?? undefined,
   };
 }
 
@@ -105,9 +107,9 @@ export async function dbLoadAllProjects(): Promise<ProjectData[]> {
         select id, rule_id, severity, file_path, start_line, end_line, snippet, message,
                explanation, suggested_fix_diff, idempotency_key, autofix,
                estimate_kg_co2e, estimate_methodology, estimate_grid_intensity_gco2_per_kwh,
-               estimate_confidence, estimate_cost_usd, billing_upload_id
+               estimate_confidence, estimate_cost_usd, billing_upload_id, pr_url
         from findings
-        where project_id = ${projectRow.id}
+        where project_id = ${projectRow.id} and remediated_at is null
       `) as FindingRow[];
 
       return {
@@ -130,9 +132,9 @@ export async function dbLoadProject(projectId: string): Promise<ProjectData | nu
     select id, rule_id, severity, file_path, start_line, end_line, snippet, message,
            explanation, suggested_fix_diff, idempotency_key, autofix,
            estimate_kg_co2e, estimate_methodology, estimate_grid_intensity_gco2_per_kwh,
-           estimate_confidence, estimate_cost_usd, billing_upload_id
+           estimate_confidence, estimate_cost_usd, billing_upload_id, pr_url
     from findings
-    where project_id = ${projectId}
+    where project_id = ${projectId} and remediated_at is null
   `) as FindingRow[];
 
   return {
@@ -190,6 +192,30 @@ export async function dbUpsertProject(data: ProjectData): Promise<void> {
       name = excluded.name,
       repo_url = excluded.repo_url,
       scanned_at = excluded.scanned_at
+  `;
+
+  // Reconcile against the previous scan before upserting the new one: a
+  // finding that was active before but is absent from this fresh scan
+  // either got fixed (if it had an open PR, that's the merge — mark
+  // remediated_at rather than deleting, so remediation counts survive) or
+  // just disappeared with no PR behind it (stale, delete outright — never
+  // tracked as in-progress). Findings still present just get upserted
+  // below, unchanged in this step.
+  const currentIds = findings.map((f) => f.id);
+  await db`
+    update findings
+    set remediated_at = now()
+    where project_id = ${project.id}
+      and remediated_at is null
+      and pr_url is not null
+      and id != all(${currentIds})
+  `;
+  await db`
+    delete from findings
+    where project_id = ${project.id}
+      and remediated_at is null
+      and pr_url is null
+      and id != all(${currentIds})
   `;
 
   for (const finding of findings) {
@@ -380,4 +406,90 @@ export async function dbListBillingUploads(limit = 50): Promise<BillingUploadHis
     projectName: row.project_name,
     findingsStillLinked: Number(row.findings_still_linked),
   }));
+}
+
+export interface RemediationCandidate {
+  id: string;
+  ruleId: string;
+  filePath: string;
+  message: string;
+  suggestedFixDiff: string;
+  idempotencyKey: string | null;
+}
+
+/**
+ * Findings ready to have a PR raised: a validated fix diff, no PR opened
+ * for them yet, and still active (not already remediated by an earlier
+ * one). Pass findingId to scope to a single finding (the per-finding
+ * "Create PR" button) — omit it for the bulk "Raise PRs for fixes" action.
+ */
+export async function dbGetRemediationCandidates(
+  projectId: string,
+  findingId?: string
+): Promise<RemediationCandidate[]> {
+  const db = sql();
+  const rows = (findingId
+    ? await db`
+        select id, rule_id, file_path, message, suggested_fix_diff, idempotency_key
+        from findings
+        where project_id = ${projectId} and id = ${findingId}
+          and suggested_fix_diff is not null and pr_url is null and remediated_at is null
+      `
+    : await db`
+        select id, rule_id, file_path, message, suggested_fix_diff, idempotency_key
+        from findings
+        where project_id = ${projectId}
+          and suggested_fix_diff is not null and pr_url is null and remediated_at is null
+      `) as Array<{
+    id: string;
+    rule_id: string;
+    file_path: string;
+    message: string;
+    suggested_fix_diff: string;
+    idempotency_key: string | null;
+  }>;
+  return rows.map((row) => ({
+    id: row.id,
+    ruleId: row.rule_id,
+    filePath: row.file_path,
+    message: row.message,
+    suggestedFixDiff: row.suggested_fix_diff,
+    idempotencyKey: row.idempotency_key,
+  }));
+}
+
+/** Records that remediate-repo.yml successfully opened a PR for a finding — "in progress", not "fixed" (see schema.sql's remediated_at comment). */
+export async function dbMarkFindingPrOpened(projectId: string, findingId: string, prUrl: string): Promise<void> {
+  const db = sql();
+  await db`
+    update findings set pr_url = ${prUrl}, pr_opened_at = now()
+    where project_id = ${projectId} and id = ${findingId}
+  `;
+}
+
+export interface RemediationCounts {
+  /** Active findings with a validated fix ready but no PR raised yet. */
+  readyCount: number;
+  /** Active findings with an open PR, not yet merged/detected as fixed. */
+  inProgressCount: number;
+  /** Findings a later rescan confirmed as actually fixed (merged PR removed the code). */
+  remediatedCount: number;
+}
+
+export async function dbGetRemediationCounts(projectId: string): Promise<RemediationCounts> {
+  const db = sql();
+  const rows = (await db`
+    select
+      count(*) filter (where remediated_at is null and suggested_fix_diff is not null and pr_url is null) as ready_count,
+      count(*) filter (where remediated_at is null and pr_url is not null) as in_progress_count,
+      count(*) filter (where remediated_at is not null) as remediated_count
+    from findings
+    where project_id = ${projectId}
+  `) as Array<{ ready_count: number; in_progress_count: number; remediated_count: number }>;
+  const row = rows[0];
+  return {
+    readyCount: Number(row?.ready_count ?? 0),
+    inProgressCount: Number(row?.in_progress_count ?? 0),
+    remediatedCount: Number(row?.remediated_count ?? 0),
+  };
 }

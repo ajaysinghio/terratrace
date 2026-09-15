@@ -34,6 +34,7 @@ export interface FixInProgress {
   filePath: string;
   startLine: number;
   idempotencyKey: string;
+  prUrl: string;
   severity: EnrichedFinding["severity"];
 }
 
@@ -91,21 +92,24 @@ export function computeRecommendations(findings: EnrichedFinding[]): Recommendat
 }
 
 /**
- * Findings that already carry an idempotencyKey are trackable on GitHub (the
- * Action labels its fix PR / advisory Issue with `terratrace:<key>`) — this
- * is the Middle Management view's "fixes in progress" list. It only lists
- * them; resolving each one's actual PR/Issue state needs a live GitHub API
- * call this dashboard doesn't make yet (see the project board for that as a
- * follow-up), so today it's a worklist, not a live status feed.
+ * Findings with an actually-opened PR (prUrl set) — the Middle Management
+ * view's "fixes in progress" list. "In progress" means exactly that: a PR
+ * is open, not yet merged. idempotencyKey is set on every finding
+ * regardless of remediation state, so it can't be the signal here (a past
+ * bug: this used to filter on idempotencyKey and listed every finding).
+ * Once a rescan confirms the underlying code is gone, the finding moves to
+ * remediated_at (see db.ts) and drops out of the active findings this
+ * function ever sees at all, so it naturally leaves this list too.
  */
 export function computeFixesInProgress(findings: EnrichedFinding[]): FixInProgress[] {
   return findings
-    .filter((f): f is EnrichedFinding & { idempotencyKey: string } => Boolean(f.idempotencyKey))
+    .filter((f): f is EnrichedFinding & { idempotencyKey: string; prUrl: string } => Boolean(f.prUrl))
     .map((f) => ({
       ruleId: f.ruleId,
       filePath: f.filePath,
       startLine: f.startLine,
-      idempotencyKey: f.idempotencyKey,
+      idempotencyKey: f.idempotencyKey ?? "",
+      prUrl: f.prUrl,
       severity: f.severity,
     }));
 }

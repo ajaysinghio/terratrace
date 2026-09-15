@@ -4,7 +4,7 @@ import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 import { FilesSection } from "../../../../components/Dashboard";
 import ProjectShell from "../../../../components/ProjectShell";
-import { parseRole } from "../../../../lib/role";
+import { parseRole, ROLE_RANK } from "../../../../lib/role";
 import { loadProject } from "../../../../lib/projects";
 import { COOKIE_NAME, verifySessionCookieValue } from "../../../../lib/session";
 import { SEVERITY_WEIGHT } from "../../../../lib/stats";
@@ -61,6 +61,8 @@ export default async function ProjectFilesPage({
       <FilesSection
         findings={findings}
         repoUrl={data.project.repoUrl}
+        projectId={projectId}
+        canRemediate={ROLE_RANK[role] >= ROLE_RANK.manager}
         initialExpandedFile={fileFilter}
         severityFilter={severityFilter}
         fileFilter={fileFilter}

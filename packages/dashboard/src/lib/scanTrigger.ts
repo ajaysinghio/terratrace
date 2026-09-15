@@ -54,6 +54,49 @@ export async function triggerScanWorkflow(params: {
   }
 }
 
+/**
+ * Fires .github/workflows/remediate-repo.yml — deliberately a different
+ * workflow from triggerScanWorkflow above, never called automatically by a
+ * scan. Only opens PRs for findings that already have a validated
+ * suggestedFixDiff; omit findingId to raise PRs for every ready finding in
+ * the project, or pass one to remediate just that finding.
+ */
+export async function triggerRemediateWorkflow(params: {
+  repoOwner: string;
+  repoName: string;
+  projectId: string;
+  findingId?: string;
+}): Promise<boolean> {
+  const token = process.env.GITHUB_DISPATCH_TOKEN;
+  if (!token) return false;
+
+  try {
+    const response = await fetch(
+      `https://api.github.com/repos/${SCANNER_REPO}/actions/workflows/remediate-repo.yml/dispatches`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: "application/vnd.github+json",
+          "X-GitHub-Api-Version": "2022-11-28",
+        },
+        body: JSON.stringify({
+          ref: "main",
+          inputs: {
+            repo_owner: params.repoOwner,
+            repo_name: params.repoName,
+            project_id: params.projectId,
+            finding_id: params.findingId ?? "",
+          },
+        }),
+      }
+    );
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
 export function manualScanSteps(params: { repoUrl: string; repoName: string; projectId: string; projectName: string }): string[] {
   // fast-glob (the scan's file matcher) and git-remote detection both
   // resolve relative to process.cwd(), so the scan has to actually run with

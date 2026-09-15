@@ -18,6 +18,7 @@ import {
   YAxis,
 } from "recharts";
 import { computeEquivalents } from "../lib/equivalents";
+import RemediateButton from "./RemediateButton";
 import type { FixInProgress, Recommendation, ServiceImpact } from "../lib/roleStats";
 import { computeStats, domainOf, SEVERITY_COLOR, SEVERITY_WEIGHT, type DomainImpact, type FileImpact } from "../lib/stats";
 import { ROLE_RANK, type Role } from "../lib/role";
@@ -687,11 +688,15 @@ function groupFindingsByFile(findings: EnrichedFinding[]): FileGroup[] {
 function FileFindingsList({
   findings,
   repoUrl,
+  projectId,
+  canRemediate,
   expandedFile,
   onToggleFile,
 }: {
   findings: EnrichedFinding[];
   repoUrl?: string;
+  projectId: string;
+  canRemediate: boolean;
   expandedFile: string | null;
   onToggleFile: (filePath: string) => void;
 }) {
@@ -751,16 +756,27 @@ function FileFindingsList({
                         <strong>Explanation:</strong> {finding.explanation}
                       </p>
                     )}
-                    {(() => {
-                      const url = findingLabelUrl(repoUrl, finding.idempotencyKey);
-                      return url ? (
-                        <p className="finding__pr-link">
-                          <a href={url} target="_blank" rel="noopener noreferrer">
-                            View PR / advisory Issue on GitHub →
-                          </a>
-                        </p>
-                      ) : null;
-                    })()}
+                    {finding.prUrl ? (
+                      <p className="finding__pr-link">
+                        <a href={finding.prUrl} target="_blank" rel="noopener noreferrer">
+                          🔵 PR in progress →
+                        </a>
+                      </p>
+                    ) : (
+                      (() => {
+                        const url = findingLabelUrl(repoUrl, finding.idempotencyKey);
+                        return url ? (
+                          <p className="finding__pr-link">
+                            <a href={url} target="_blank" rel="noopener noreferrer">
+                              View PR / advisory Issue on GitHub →
+                            </a>
+                          </p>
+                        ) : null;
+                      })()
+                    )}
+                    {canRemediate && !finding.prUrl && finding.suggestedFixDiff && (
+                      <RemediateButton projectId={projectId} findingId={finding.id} label="Create PR for this fix" />
+                    )}
                   </li>
                 ))}
               </ul>
@@ -1075,6 +1091,8 @@ export function FixesSection({
 export function FilesSection({
   findings,
   repoUrl,
+  projectId,
+  canRemediate,
   initialExpandedFile,
   severityFilter,
   fileFilter,
@@ -1083,6 +1101,9 @@ export function FilesSection({
 }: {
   findings: EnrichedFinding[];
   repoUrl?: string;
+  projectId: string;
+  /** Manager/Engineer only — remediation writes real PRs, not something every role should trigger. */
+  canRemediate: boolean;
   initialExpandedFile: string | null;
   severityFilter?: EnrichedFinding["severity"] | null;
   fileFilter?: string | null;
@@ -1144,6 +1165,8 @@ export function FilesSection({
       <FileFindingsList
         findings={findings}
         repoUrl={repoUrl}
+        projectId={projectId}
+        canRemediate={canRemediate}
         expandedFile={expandedFile}
         onToggleFile={(filePath) => setExpandedFile(expandedFile === filePath ? null : filePath)}
       />

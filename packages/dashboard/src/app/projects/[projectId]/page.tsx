@@ -3,8 +3,9 @@ import { notFound } from "next/navigation";
 import BillingProvenanceBadge from "../../../components/BillingProvenanceBadge";
 import { OverviewSection } from "../../../components/Dashboard";
 import ProjectShell from "../../../components/ProjectShell";
-import { dbGetLatestBillingUpload, isDbConfigured } from "../../../lib/db";
-import { parseRole } from "../../../lib/role";
+import RemediateButton from "../../../components/RemediateButton";
+import { dbGetLatestBillingUpload, dbGetRemediationCounts, isDbConfigured } from "../../../lib/db";
+import { parseRole, ROLE_RANK } from "../../../lib/role";
 import { loadProject } from "../../../lib/projects";
 import { computeRecommendations, computeServiceBreakdown } from "../../../lib/roleStats";
 import { computeStats } from "../../../lib/stats";
@@ -35,6 +36,7 @@ export default async function ProjectOverviewPage({
 
   const latestUpload = isDbConfigured() ? await dbGetLatestBillingUpload(projectId) : null;
   const hasEstimates = data.findings.some((f) => f.estimate);
+  const remediationCounts = isDbConfigured() ? await dbGetRemediationCounts(projectId) : null;
 
   return (
     <ProjectShell
@@ -46,6 +48,11 @@ export default async function ProjectOverviewPage({
       login={session?.login}
     >
       {isDbConfigured() && <BillingProvenanceBadge latestUpload={latestUpload} hasEstimates={hasEstimates} />}
+      {ROLE_RANK[role] >= ROLE_RANK.manager && remediationCounts && remediationCounts.readyCount > 0 && (
+        <div className="dashboard-toolbar">
+          <RemediateButton projectId={projectId} label={`Raise PRs for ${remediationCounts.readyCount} fix(es)`} />
+        </div>
+      )}
       <OverviewSection
         projectId={projectId}
         role={role}
