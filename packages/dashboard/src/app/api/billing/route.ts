@@ -10,14 +10,20 @@ import { loadAllProjects } from "../../../lib/projects";
 export const dynamic = "force-dynamic";
 
 /**
- * One CUR file for the whole AWS account, correlated against every scanned
- * project at once — matches how AWS actually issues a CUR (per payer
- * account, not per repo/service; see README's billing notes). Real-world
- * caveat this doesn't solve yet: without resource-tag filtering, a service
- * (e.g. "AmazonEC2") shared by two projects gets that service's full usage
- * attributed to *both*, which double-counts cost/carbon across projects if
- * they're summed org-wide. Fine for a single-account demo; a production
- * version needs to split usage by resourceTags before calling
+ * One CUR file for the whole AWS account, correlated against every project
+ * *linked to that account* at once — matches how AWS actually issues a CUR
+ * (per payer account, not per repo/service; see README's billing notes).
+ * Only projects.billing_linked = true get touched: a project registered via
+ * "Add repo" (an OSS project, say) has no relationship to whichever AWS
+ * account uploaded a CUR file, and defaults to unlinked so it's never
+ * silently assigned cost/carbon data for billing it was never actually
+ * charged under. Toggle a project's link from its overview page.
+ *
+ * Real-world caveat this doesn't solve yet: without resource-tag filtering,
+ * a service (e.g. "AmazonEC2") shared by two *linked* projects gets that
+ * service's full usage attributed to both, which double-counts cost/carbon
+ * if summed org-wide. Fine for a single-account demo; a production version
+ * needs to split usage by resourceTags before calling
  * correlateFindingsWithUsage per project.
  */
 export async function POST(request: Request) {
@@ -52,7 +58,22 @@ export async function POST(request: Request) {
     );
   }
 
-  const projects = await loadAllProjects();
+  const allProjects = await loadAllProjects();
+  const projects = allProjects.filter(({ project }) => project.billingLinked);
+  const skipped = allProjects.filter(({ project }) => !project.billingLinked).map(({ project }) => project.name);
+
+  if (projects.length === 0) {
+    return NextResponse.json(
+      {
+        error:
+          allProjects.length === 0
+            ? "No projects registered yet."
+            : "No project is linked to this billing account yet — link one from its overview page first.",
+      },
+      { status: 400 }
+    );
+  }
+
   const perProject = [];
 
   for (const { project, findings } of projects) {
@@ -80,6 +101,7 @@ export async function POST(request: Request) {
     filename: file.name,
     recordCount: usageRecords.length,
     projects: perProject,
+    skippedProjects: skipped,
     findingsUpdated: perProject.reduce((sum, p) => sum + p.findingsUpdated, 0),
     totalCostUsd: perProject.reduce((sum, p) => sum + p.totalCostUsd, 0),
     totalKgCO2e: perProject.reduce((sum, p) => sum + p.totalKgCO2e, 0),

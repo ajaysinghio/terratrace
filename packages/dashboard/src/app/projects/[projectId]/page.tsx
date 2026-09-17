@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
+import BillingLinkToggle from "../../../components/BillingLinkToggle";
 import BillingProvenanceBadge from "../../../components/BillingProvenanceBadge";
 import { OverviewSection } from "../../../components/Dashboard";
 import ProjectShell from "../../../components/ProjectShell";
@@ -48,6 +49,9 @@ export default async function ProjectOverviewPage({
       login={session?.login}
     >
       {isDbConfigured() && <BillingProvenanceBadge latestUpload={latestUpload} hasEstimates={hasEstimates} />}
+      {isDbConfigured() && ROLE_RANK[role] >= ROLE_RANK.manager && (
+        <BillingLinkToggle projectId={projectId} linked={Boolean(data.project.billingLinked)} />
+      )}
       {ROLE_RANK[role] >= ROLE_RANK.manager && remediationCounts && remediationCounts.readyCount > 0 && (
         <div className="dashboard-toolbar">
           <RemediateButton projectId={projectId} label={`Raise PRs for ${remediationCounts.readyCount} fix(es)`} />

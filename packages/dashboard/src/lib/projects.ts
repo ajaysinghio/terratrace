@@ -9,6 +9,8 @@ export interface ProjectMeta {
   name: string;
   repoUrl?: string;
   scannedAt?: string;
+  /** Opt-in: does this project's billing actually run through an AWS account a CUR upload represents? See db/schema.sql's column comment. Defaults to false for file-backed (scan-output/) projects, which predate this concept. */
+  billingLinked?: boolean;
 }
 
 export interface ProjectData {

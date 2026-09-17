@@ -16,6 +16,7 @@ interface UploadResult {
   filename: string;
   recordCount: number;
   projects: ProjectResult[];
+  skippedProjects: string[];
   findingsUpdated: number;
   totalCostUsd: number;
   totalKgCO2e: number;
@@ -25,7 +26,10 @@ interface UploadResult {
  * The one place to upload a CUR file, org-wide — AWS issues a CUR per
  * payer account, not per repo/service, so there's no such thing as "the CUR
  * for this project" (see api/billing/route.ts). One upload here
- * re-correlates every scanned project at once.
+ * re-correlates every project *linked to this billing account* — a project
+ * not linked (e.g. an OSS repo added via "Add repo") is deliberately
+ * skipped, not silently assigned cost data for billing it was never
+ * actually charged under.
  */
 export default function GlobalBillingUpload() {
   const router = useRouter();
@@ -96,6 +100,12 @@ export default function GlobalBillingUpload() {
               </li>
             ))}
           </ul>
+          {result.skippedProjects.length > 0 && (
+            <p className="card__hint">
+              Skipped (not linked to this billing account): {result.skippedProjects.join(", ")}. Link a project from
+              its overview page if it actually belongs to this AWS account.
+            </p>
+          )}
         </div>
       )}
     </div>

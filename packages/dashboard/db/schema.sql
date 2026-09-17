@@ -11,7 +11,15 @@ create table if not exists projects (
   id text primary key,
   name text not null,
   repo_url text,
-  scanned_at timestamptz
+  scanned_at timestamptz,
+  -- Opt-in: does this project's billing actually run through the AWS
+  -- account a CUR upload represents? A repo registered via "Add repo" (an
+  -- OSS project, say) has no relationship to whatever account uploaded a
+  -- CUR file — defaults to false so the global CUR upload (one file
+  -- applied to every project at once, see api/billing/route.ts) never
+  -- silently claims cost/carbon data for a project it was never billed
+  -- for. Toggle explicitly per project once you know it belongs.
+  billing_linked boolean not null default false
 );
 
 create table if not exists billing_uploads (
@@ -78,3 +86,4 @@ create index if not exists billing_uploads_project_id_idx on billing_uploads (pr
 alter table findings add column if not exists pr_url text;
 alter table findings add column if not exists pr_opened_at timestamptz;
 alter table findings add column if not exists remediated_at timestamptz;
+alter table projects add column if not exists billing_linked boolean not null default false;

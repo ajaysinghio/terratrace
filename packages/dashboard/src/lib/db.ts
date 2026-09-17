@@ -30,6 +30,7 @@ interface ProjectRow {
   name: string;
   repo_url: string | null;
   scanned_at: string | null;
+  billing_linked: boolean;
 }
 
 interface FindingRow {
@@ -60,6 +61,7 @@ function toProjectMeta(row: ProjectRow): ProjectMeta {
     name: row.name,
     repoUrl: row.repo_url ?? undefined,
     scannedAt: row.scanned_at ?? undefined,
+    billingLinked: row.billing_linked,
   };
 }
 
@@ -99,7 +101,7 @@ function toEnrichedFinding(row: FindingRow): EnrichedFinding {
 
 export async function dbLoadAllProjects(): Promise<ProjectData[]> {
   const db = sql();
-  const projectRows = (await db`select id, name, repo_url, scanned_at from projects`) as ProjectRow[];
+  const projectRows = (await db`select id, name, repo_url, scanned_at, billing_linked from projects`) as ProjectRow[];
 
   return Promise.all(
     projectRows.map(async (projectRow) => {
@@ -123,7 +125,7 @@ export async function dbLoadAllProjects(): Promise<ProjectData[]> {
 export async function dbLoadProject(projectId: string): Promise<ProjectData | null> {
   const db = sql();
   const projectRows = (await db`
-    select id, name, repo_url, scanned_at from projects where id = ${projectId}
+    select id, name, repo_url, scanned_at, billing_linked from projects where id = ${projectId}
   `) as ProjectRow[];
   const projectRow = projectRows[0];
   if (!projectRow) return null;
@@ -492,4 +494,15 @@ export async function dbGetRemediationCounts(projectId: string): Promise<Remedia
     inProgressCount: Number(row?.in_progress_count ?? 0),
     remediatedCount: Number(row?.remediated_count ?? 0),
   };
+}
+
+/**
+ * Toggles whether a project's billing actually runs through the AWS
+ * account a CUR upload represents — see projects.billing_linked's schema
+ * comment. Off by default for every project; a global CUR upload only
+ * ever touches projects where this is true.
+ */
+export async function dbSetBillingLinked(projectId: string, linked: boolean): Promise<void> {
+  const db = sql();
+  await db`update projects set billing_linked = ${linked} where id = ${projectId}`;
 }

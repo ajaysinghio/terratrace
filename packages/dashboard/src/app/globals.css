@@ -415,6 +415,16 @@ a.stat-tile:visited {
   background: var(--bg-inset);
 }
 
+.billing-link-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin: 0 0 1rem;
+  cursor: pointer;
+}
+
 .billing-upload__error {
   color: #f85149;
   font-size: 0.85rem;
