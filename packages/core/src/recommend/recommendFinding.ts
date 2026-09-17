@@ -69,6 +69,23 @@ function stripMarkdownFences(raw: string): string {
   return fenceMatch ? fenceMatch[1] : raw;
 }
 
+function normalizePath(path: string): string {
+  return path.replace(/\\/g, "/").replace(/^\.\//, "");
+}
+
+/**
+ * Returns the diff's target path if it doesn't match findingPath (after
+ * normalizing away a/ b/ prefixes and leading ./), or undefined if the diff
+ * has no file header at all (jsdiff tolerates that) or genuinely targets
+ * the right file.
+ */
+function diffTargetsWrongFile(diff: string, findingPath: string): string | undefined {
+  const header = diff.match(/^--- a\/(.+)$/m) ?? diff.match(/^\+\+\+ b\/(.+)$/m);
+  if (!header) return undefined;
+  const diffPath = normalizePath(header[1].trim());
+  return diffPath === normalizePath(findingPath) ? undefined : diffPath;
+}
+
 async function attemptFix(
   args: RecommendFindingArgs,
   baselineKeys: Set<string>,
@@ -90,6 +107,25 @@ async function attemptFix(
         ok: false,
         reason: "diff-did-not-apply",
         detail: "Output contained no unified-diff hunks (missing '@@' markers).",
+      },
+    };
+  }
+
+  // Guardrail: reject a diff that targets a different file than the finding
+  // itself, however cleanly it might otherwise apply. The system prompt
+  // already says "touch only the finding's file path", but scanned source
+  // is untrusted input (see AnthropicProvider's PROMPT_INJECTION_GUARDRAIL)
+  // — this is the check that actually enforces the constraint rather than
+  // just asking for it, bounding what an adversarial or hallucinated diff
+  // could otherwise reach via commitPatchedFile.
+  const offTargetPath = diffTargetsWrongFile(diff, finding.filePath);
+  if (offTargetPath) {
+    return {
+      diff,
+      validation: {
+        ok: false,
+        reason: "diff-did-not-apply",
+        detail: `Diff targets "${offTargetPath}" instead of the finding's file "${finding.filePath}" — rejected.`,
       },
     };
   }

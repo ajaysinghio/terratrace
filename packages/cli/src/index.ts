@@ -176,6 +176,31 @@ async function main(): Promise<void> {
     }
   }
 
+  // Cost control: an LLM call is attempted (explainFinding, then
+  // recommendFinding) per finding with no cap otherwise — a large repo with
+  // hundreds of findings has no spend ceiling. Prioritize the highest-
+  // severity findings within the budget rather than capping by scan order,
+  // so a huge low-severity tail can't crowd out the findings that matter
+  // most. Set TERRATRACE_MAX_LLM_FINDINGS to override the default of 50;
+  // findings beyond the budget still appear in the output, just without an
+  // explanation/suggestedFixDiff.
+  const SEVERITY_ORDER: Record<CodeFinding["severity"], number> = { low: 0, medium: 1, high: 2 };
+  const maxLlmFindings = Number(process.env.TERRATRACE_MAX_LLM_FINDINGS) || 50;
+  const budgetedFindingIds = new Set(
+    [...allFindings]
+      .sort((a, b) => SEVERITY_ORDER[b.severity] - SEVERITY_ORDER[a.severity])
+      .slice(0, maxLlmFindings)
+      .map((f) => f.id),
+  );
+  const skippedForBudget = allFindings.length - budgetedFindingIds.size;
+  if (skippedForBudget > 0) {
+    console.error(
+      `terratrace: cost control — ${allFindings.length} finding(s) found, LLM calls capped at ` +
+        `${maxLlmFindings} (set TERRATRACE_MAX_LLM_FINDINGS to change); skipping explanation/fix ` +
+        `generation for ${skippedForBudget} lower-severity finding(s).`,
+    );
+  }
+
   const enrichedFindings: EnrichedFinding[] = [];
   let recommendationsValidated = 0;
   let recommendationsRejected = 0;
@@ -188,20 +213,23 @@ async function main(): Promise<void> {
       (record) => record.service === RULE_SERVICE_MAP[finding.ruleId],
     );
     const evidence = { codeFinding: finding, carbonEstimate: estimate, relatedUsage };
+    const withinLlmBudget = budgetedFindingIds.has(finding.id);
 
     let explanation: string | undefined;
-    try {
-      explanation = await llm.explainFinding(evidence);
-    } catch (error) {
-      console.error(
-        `terratrace: explainFinding failed for ${finding.filePath}:${finding.startLine} — leaving explanation empty.`,
-        error instanceof Error ? error.message : error,
-      );
+    if (withinLlmBudget) {
+      try {
+        explanation = await llm.explainFinding(evidence);
+      } catch (error) {
+        console.error(
+          `terratrace: explainFinding failed for ${finding.filePath}:${finding.startLine} — leaving explanation empty.`,
+          error instanceof Error ? error.message : error,
+        );
+      }
     }
 
     let suggestedFixDiff: string | undefined;
     const sourceCode = sourceByFile.get(finding.filePath);
-    if (sourceCode) {
+    if (withinLlmBudget && sourceCode) {
       try {
         const recommendation = await recommendFinding({
           finding,
