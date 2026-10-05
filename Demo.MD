@@ -2,7 +2,7 @@
 
 Every command for every demo scenario, in the order you'd use them. Run
 `pnpm` commands from the repo root (`/Users/ajaykumarsingh/dev/terratrace`).
-Shorthand used below: `D=@terratrace/dashboard`.
+Every command is copy-paste ready — no shell variables to set.
 
 Registered projects: `orders-service`, `infra` (both CUR-linked), plus
 `spring-petclinic` and `unicorn-store-spring` (not linked — no bogus billing).
@@ -33,7 +33,7 @@ gh run list -R ajaysinghio/terratrace -L 5   # last scans/deploys green, none st
 Reset the billing story so the CUR upload is the live moment:
 
 ```bash
-pnpm --filter $D db:cur:clear:remote           # type "clear" at the prompt; keeps projects + findings
+pnpm --filter @terratrace/dashboard db:cur:clear:remote           # type "clear" at the prompt; keeps projects + findings
 ```
 
 Then in the browser:
@@ -81,15 +81,15 @@ Close demo PRs on GitHub afterwards, or a rerun won't look like a first run.
 
 ```bash
 colima start                                   # Docker daemon (skip if Docker Desktop is running)
-pnpm --filter $D db:local:sync                 # Neon -> backups/*.sql -> local Postgres :5433
+pnpm --filter @terratrace/dashboard db:local:sync                 # Neon -> backups/*.sql -> local Postgres :5433
 pnpm build
 ```
 
 **Go offline and run:**
 
 ```bash
-pnpm --filter $D start:offline                 # http://localhost:3000, local DB, no GitHub auth
-pnpm --filter $D start:offline -p 3001         # if 3000 is taken
+pnpm --filter @terratrace/dashboard start:offline                 # http://localhost:3000, local DB, no GitHub auth
+pnpm --filter @terratrace/dashboard start:offline -p 3001         # if 3000 is taken
 ```
 
 - No sign-in, no GitHub calls. Scan / Rescan / Create PR **do not work offline** — don't click them.
@@ -98,8 +98,8 @@ pnpm --filter $D start:offline -p 3001         # if 3000 is taken
 **Reset between offline runs** (either one):
 
 ```bash
-pnpm --filter $D db:cur:clear:local            # drop CUR uploads + estimates, keep findings
-pnpm --filter $D db:local:restore              # full put-back from backups/latest.sql (works with no internet)
+pnpm --filter @terratrace/dashboard db:cur:clear:local            # drop CUR uploads + estimates, keep findings
+pnpm --filter @terratrace/dashboard db:local:restore              # full put-back from backups/latest.sql (works with no internet)
 ```
 
 `db:local:sync` needs internet (it pulls from Neon). `db:local:restore`
@@ -112,12 +112,12 @@ safe — it's gitignored, so it only exists on this laptop.
 
 | Goal | Command |
 |---|---|
-| Remove CUR data on **Neon** (keep findings) | `pnpm --filter $D db:cur:clear:remote` |
-| Remove CUR data on **local** Postgres | `pnpm --filter $D db:cur:clear:local` |
+| Remove CUR data on **Neon** (keep findings) | `pnpm --filter @terratrace/dashboard db:cur:clear:remote` |
+| Remove CUR data on **local** Postgres | `pnpm --filter @terratrace/dashboard db:cur:clear:local` |
 | Skip the prompt | add `-- --yes` to either of the above |
-| Restore local DB from the last dump | `pnpm --filter $D db:local:restore` |
-| Refresh local DB from Neon | `pnpm --filter $D db:local:sync` |
-| Save a dated Neon backup only | `pnpm --filter $D db:local:dump` |
+| Restore local DB from the last dump | `pnpm --filter @terratrace/dashboard db:local:restore` |
+| Refresh local DB from Neon | `pnpm --filter @terratrace/dashboard db:local:sync` |
+| Save a dated Neon backup only | `pnpm --filter @terratrace/dashboard db:local:dump` |
 
 A full "forget all scan results, keep the repos" reset has **no pnpm script**
 (a `db:reset` was discussed but never added). Use this SQL — paste it into
@@ -168,7 +168,7 @@ docker compose up -d --wait db                 # start local Postgres by itself
 | First page load slow, then fast | Neon waking from idle — open the site a few minutes before the demo |
 | Slow on every load | Vercel function region not `sin1` (Settings → Functions) |
 | `start:offline` can't connect | `docker compose up -d --wait db`, then retry |
-| Offline shows stale/empty data | `pnpm --filter $D db:local:sync` (online) or `db:local:restore` |
+| Offline shows stale/empty data | `pnpm --filter @terratrace/dashboard db:local:sync` (online) or `db:local:restore` |
 | Billing upload says no project linked | Open a project (manager view) and toggle the billing link on |
 | Scan button disabled | A scan for that project is still running — `gh run list -w scan-repo.yml` |
 | Edits to `packages/core` look ignored downstream | `pnpm build` first (core must be built) |
