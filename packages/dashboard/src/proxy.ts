@@ -5,7 +5,8 @@ import { COOKIE_NAME, verifySessionCookieValue } from "./lib/session";
 // Gates every page behind "is this GitHub user a collaborator on the repo"
 // (see api/auth/callback/route.ts). Excludes /api/auth/* (the sign-in flow
 // itself), /access-denied (must be reachable while signed out), and Next's
-// own static/image assets — see the matcher's negative lookahead below.
+// own static/image assets and the tab icon (icon.svg must load while signed
+// out too) — see the matcher's negative lookahead below.
 export function proxy(request: NextRequest) {
   // No OAuth app configured (e.g. local dev) — behave exactly as before this
   // feature existed rather than forcing every contributor through GitHub
@@ -28,5 +29,5 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!api/auth|access-denied|_next/static|_next/image|favicon.ico).*)"],
+  matcher: ["/((?!api/auth|access-denied|_next/static|_next/image|favicon.ico|icon.svg).*)"],
 };
