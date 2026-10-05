@@ -220,6 +220,16 @@ pnpm --filter @terratrace/dashboard start:offline     # app on :3000, DB = local
 ```
 
 `db:local:dump` and `db:local:restore [file]` do each half separately.
+
+To clear CUR upload data (upload history plus the cost/carbon estimates it
+produced; projects and findings are kept), with a confirmation prompt:
+
+```bash
+pnpm --filter @terratrace/dashboard db:cur:clear:local    # local Postgres
+pnpm --filter @terratrace/dashboard db:cur:clear:remote   # Neon, via DATABASE_URL in .env
+```
+
+Add `-- --yes` to skip the prompt.
 Anything done in offline mode (uploads, link toggles) stays in the local
 copy and is overwritten by the next `db:local:sync`. Scanning and PR
 creation need GitHub Actions, so they don't work offline. `backups/` is

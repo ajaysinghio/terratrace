@@ -11,6 +11,8 @@
     "lint": "next lint",
     "db:init": "node scripts/init-db.mjs",
     "db:import": "node scripts/import-scan-output.mjs",
+    "db:cur:clear:remote": "node --env-file-if-exists=.env scripts/clear-cur.mjs --target=remote",
+    "db:cur:clear:local": "node scripts/clear-cur.mjs --target=local",
     "db:local:dump": "scripts/local-db.sh dump",
     "db:local:restore": "scripts/local-db.sh restore",
     "db:local:sync": "scripts/local-db.sh sync",
