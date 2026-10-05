@@ -89,6 +89,17 @@ change instead of letting it drift stale.
   Neon cold-start mitigation, batching `scripts/import-scan-output.mjs`
   (CI-only path).
 
+## Offline demo / DR copy (2026-10-05, uncommitted)
+
+- `docker-compose.yml` (postgres:18 to match Neon's 18.x, port 5433),
+  `packages/dashboard/src/lib/sql.ts` (uses `pg` for a localhost
+  `DATABASE_URL`, Neon HTTP driver otherwise), `scripts/local-db.sh`
+  (`db:local:dump|restore|sync`), `start:offline` script. Only `db.ts` goes
+  through the adapter; `init-db.mjs`, `import-scan-output.mjs`, `remediate.mjs`
+  still use `neon()` directly (CI/Neon-only paths).
+- Verified: sync round-trips; all pages 200 against local; CUR upload
+  (the unnest transaction) works on real Postgres.
+
 ## On hold (explicitly deferred 2026-10-05)
 
 - CloudWatch utilization (see the `GetMetricData` item below). Scoped as:

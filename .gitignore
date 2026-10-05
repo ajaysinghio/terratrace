@@ -24,3 +24,6 @@ scan-output/*
 # parse-hcl writes this default output file to cwd on every invocation
 # regardless of --stdout — harmless, but shouldn't be tracked.
 parse-hcl-output.json
+
+# pg_dump output from packages/dashboard/scripts/local-db.sh — contains real findings data
+packages/dashboard/backups/

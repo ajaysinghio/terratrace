@@ -1,0 +1,23 @@
+# Local Postgres for the offline laptop demo / DR copy of the Neon database.
+# postgres:18 matches Neon's server version so pg_dump/restore round-trips.
+#   docker compose up -d --wait db
+#   postgres://terratrace:terratrace@localhost:5433/terratrace
+services:
+  db:
+    image: postgres:18
+    environment:
+      POSTGRES_USER: terratrace
+      POSTGRES_PASSWORD: terratrace
+      POSTGRES_DB: terratrace
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - terratrace-pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U terratrace -d terratrace"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+volumes:
+  terratrace-pgdata:

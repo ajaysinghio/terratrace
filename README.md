@@ -207,6 +207,24 @@ pnpm --filter @terratrace/dashboard start
 
 Opens at http://localhost:3000 (or the next free port).
 
+### Dashboard — offline laptop demo (local Postgres)
+
+A local copy of the Neon database lets the dashboard run with no internet.
+Needs Docker (or Colima). Neon is only ever read (`pg_dump`); restore only
+writes to the local container.
+
+```bash
+pnpm --filter @terratrace/dashboard db:local:sync     # Neon -> backups/*.sql -> local Postgres (localhost:5433)
+pnpm build
+pnpm --filter @terratrace/dashboard start:offline     # app on :3000, DB = local, no GitHub auth/token
+```
+
+`db:local:dump` and `db:local:restore [file]` do each half separately.
+Anything done in offline mode (uploads, link toggles) stays in the local
+copy and is overwritten by the next `db:local:sync`. Scanning and PR
+creation need GitHub Actions, so they don't work offline. `backups/` is
+gitignored (it contains real findings data).
+
 ### Dashboard — remote (Vercel)
 
 The dashboard is a standard Next.js App Router app, so it deploys to Vercel

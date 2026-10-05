@@ -10,7 +10,11 @@
     "typecheck": "tsc --noEmit",
     "lint": "next lint",
     "db:init": "node scripts/init-db.mjs",
-    "db:import": "node scripts/import-scan-output.mjs"
+    "db:import": "node scripts/import-scan-output.mjs",
+    "db:local:dump": "scripts/local-db.sh dump",
+    "db:local:restore": "scripts/local-db.sh restore",
+    "db:local:sync": "scripts/local-db.sh sync",
+    "start:offline": "DATABASE_URL=postgres://terratrace:terratrace@localhost:5433/terratrace GITHUB_OAUTH_CLIENT_ID= GITHUB_DISPATCH_TOKEN= next start"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0",
@@ -18,12 +22,14 @@
     "@terratrace/core": "workspace:*",
     "diff": "^5.2.2",
     "next": "^16.3.2",
+    "pg": "^8.23.1",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "recharts": "^3.10.1"
   },
   "devDependencies": {
     "@types/node": "^26.2.0",
+    "@types/pg": "^8.23.1",
     "@types/react": "^19.2.4",
     "@types/react-dom": "^19.2.4",
     "typescript": "^7.0.2"

@@ -1,6 +1,6 @@
-import { neon } from "@neondatabase/serverless";
 import type { CarbonEstimate, EnrichedFinding, Severity } from "@terratrace/core";
 import type { ProjectData, ProjectMeta } from "./projects";
+import { createSql } from "./sql";
 import type { StatsFinding } from "./stats";
 
 export type BillingSourceType = "cur_upload" | "sample";
@@ -23,7 +23,7 @@ function sql() {
   if (!url) {
     throw new Error("DATABASE_URL is not set — call isDbConfigured() before using db.ts helpers.");
   }
-  return neon(url);
+  return createSql(url);
 }
 
 interface ProjectRow {
