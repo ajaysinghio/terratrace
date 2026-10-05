@@ -162,14 +162,7 @@ export default async function HomePage({
               const medium = stats.severityCounts.find((s) => s.severity === "medium")?.count ?? 0;
               const low = stats.severityCounts.find((s) => s.severity === "low")?.count ?? 0;
               const total = Math.max(stats.total, 1);
-              // Manager lands on the project's strategic Overview; engineer
-              // skips straight to their actionable list — same card, two
-              // different destinations depending on what each role actually
-              // does once they get there.
-              const href =
-                rank >= ROLE_RANK.engineer
-                  ? `/projects/${project.id}/files?view=${role}`
-                  : `/projects/${project.id}?view=${role}`;
+              const href = `/projects/${project.id}?view=${role}`;
 
               return (
                 <Link key={project.id} href={href} className="project-card">
