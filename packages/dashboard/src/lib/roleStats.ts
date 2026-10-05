@@ -45,7 +45,7 @@ export interface FixInProgress {
  * grouped under "Unmapped" rather than silently dropped, so the breakdown's
  * total always matches the finding count.
  */
-export function computeServiceBreakdown(findings: EnrichedFinding[]): ServiceImpact[] {
+export function computeServiceBreakdown(findings: Pick<EnrichedFinding, "ruleId" | "estimate">[]): ServiceImpact[] {
   const byService = new Map<string, { count: number; kgCO2e: number; costUsd: number }>();
   for (const finding of findings) {
     const service = RULE_SERVICE_MAP[finding.ruleId] ?? "Unmapped";

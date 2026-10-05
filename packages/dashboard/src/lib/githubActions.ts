@@ -37,9 +37,12 @@ export async function listScanWorkflowRuns(limit = 20): Promise<ScanWorkflowRun[
         "X-GitHub-Api-Version": "2022-11-28",
       },
       cache: "no-store",
+      // This runs on the render path of the home page — a slow GitHub
+      // response should degrade to "no live status", not stall the page.
+      signal: AbortSignal.timeout(3000),
     }
-  );
-  if (!response.ok) return [];
+  ).catch(() => null);
+  if (!response?.ok) return [];
 
   const body = (await response.json()) as {
     workflow_runs: Array<{

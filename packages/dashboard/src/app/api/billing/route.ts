@@ -74,28 +74,30 @@ export async function POST(request: Request) {
     );
   }
 
-  const perProject = [];
+  // Projects are independent of each other, so correlate and write them
+  // concurrently rather than one after another.
+  const perProject = await Promise.all(
+    projects.map(async ({ project, findings }) => {
+      const estimateByFindingId = correlateFindingsWithUsage(findings, usageRecords);
+      const upload = await dbRecordBillingUpload(project.id, {
+        sourceType: "cur_upload",
+        filename: file.name,
+        recordCount: usageRecords.length,
+      });
+      await dbApplyEstimates(project.id, estimateByFindingId, upload.id);
 
-  for (const { project, findings } of projects) {
-    const estimateByFindingId = correlateFindingsWithUsage(findings, usageRecords);
-    const upload = await dbRecordBillingUpload(project.id, {
-      sourceType: "cur_upload",
-      filename: file.name,
-      recordCount: usageRecords.length,
-    });
-    await dbApplyEstimates(project.id, estimateByFindingId, upload.id);
-
-    const totalCostUsd = [...estimateByFindingId.values()].reduce((sum, e) => sum + e.costUsd, 0);
-    const totalKgCO2e = [...estimateByFindingId.values()].reduce((sum, e) => sum + e.kgCO2e, 0);
-    perProject.push({
-      projectId: project.id,
-      projectName: project.name,
-      findingsUpdated: estimateByFindingId.size,
-      totalFindings: findings.length,
-      totalCostUsd,
-      totalKgCO2e,
-    });
-  }
+      const totalCostUsd = [...estimateByFindingId.values()].reduce((sum, e) => sum + e.costUsd, 0);
+      const totalKgCO2e = [...estimateByFindingId.values()].reduce((sum, e) => sum + e.kgCO2e, 0);
+      return {
+        projectId: project.id,
+        projectName: project.name,
+        findingsUpdated: estimateByFindingId.size,
+        totalFindings: findings.length,
+        totalCostUsd,
+        totalKgCO2e,
+      };
+    }),
+  );
 
   return NextResponse.json({
     filename: file.name,

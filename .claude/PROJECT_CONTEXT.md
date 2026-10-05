@@ -53,15 +53,99 @@ change instead of letting it drift stale.
   (they build from source in CI) — only the less-used direct
   `uses: .../github-action@main` consumption path.
 
+## Next up (chosen 2026-10-05, awaiting go-ahead to start)
+
+- **"Ask TerraTrace"** — grounded Q&A box on each project drill-down page.
+  `POST /api/projects/[projectId]/ask` checks session + role, loads that
+  project's findings from Neon, builds `EvidenceBundle[]`, and calls
+  `LLMProvider.answerQuery()` via `@terratrace/core` only (already
+  implemented in `AnthropicProvider.ts`; nothing in the dashboard calls it
+  yet). New `AskBox.tsx` on the project page; any links it renders must
+  carry `?view=${role}`. Reuse the `<untrusted_evidence>` delimiters and
+  prompt-injection guard, add a per-request cost cap, and refuse to answer
+  from outside the evidence. Tests: unit test of bundle-building (no API
+  call) plus one eval in the style of `recommendFinding.eval.test.ts`
+  against the planted N+1 finding.
+  - Open questions before starting: `ANTHROPIC_API_KEY` available locally
+    for the eval (else stub provider from `cli/src/harness.ts`); which roles
+    may ask (default manager and above); local DB vs fixture findings for
+    testing.
+
+## Performance pass (2026-10-05, uncommitted)
+
+- Done: parallel queries on the project page and in `dbLoadProject`; slim
+  home-page loader (`dbLoadAllProjectsSlim`, 2 queries total, no
+  snippets/diffs; `computeStats` now takes `StatsFinding`); GitHub in-progress
+  scan call runs alongside the DB load with a 3s timeout; `dbApplyEstimates`
+  is one `unnest` UPDATE in a transaction; CUR upload handles projects
+  concurrently.
+- **Decision: no response/data caching** (`unstable_cache`, `revalidateTag`,
+  `use cache`) — the app is fully data-driven and staleness after a scan,
+  upload or PR would be a correctness problem. Keep `force-dynamic`.
+- Also done: all recharts code moved to `components/Charts.tsx` and loaded via
+  `next/dynamic` from `Dashboard.tsx` (own ~400KB chunk; `lib/format.ts` holds
+  the shared `formatUsd`/`shortPath`). Keep new recharts usage in `Charts.tsx`.
+- Not done: Vercel/Neon region check,
+  Neon cold-start mitigation, batching `scripts/import-scan-output.mjs`
+  (CI-only path).
+
+## On hold (explicitly deferred 2026-10-05)
+
+- CloudWatch utilization (see the `GetMetricData` item below). Scoped as:
+  optional `avgCpuUtil` on `UsageRecord`, `estimateEc2Kwh` uses it over
+  `CCF_AVG_CPU_UTIL`, `"high"` confidence at >=80% measured kWh, a small
+  `UtilizationSource` seam (synthetic + real CloudWatch implementations),
+  join by `resourceId` before correlation. Check first whether the sample
+  CUR's `resourceId` is an instance ID or a type. Do not start without a
+  fresh go-ahead.
+
 ## Discussed but NOT started (no go-ahead given yet)
 
-- Wiring `LLMProvider.answerQuery()` into the dashboard UI.
+- Wiring `LLMProvider.answerQuery()` into the dashboard UI (promoted to
+  "Next up" above).
 - MCP server integration.
 - AI-based false-positive filtering.
-- AWS compute migration (Amplify Hosting for dashboard, CodeBuild for
-  scanning, Lambda for remediation) — this was **explicitly framed as
-  planning only** ("Just for planning right now"). Do not start migrating
-  off Vercel/GitHub Actions without a fresh, explicit ask.
+- Real CloudWatch `GetMetricData` integration (`AWS/EC2`/`AWS/RDS`,
+  `CPUUtilization`, stat `Average`) to replace the hardcoded
+  `CCF_AVG_CPU_UTIL = 0.5` in `packages/core/src/carbon/coefficients/aws.ts`
+  — this is the reason `estimateCarbon` never reports `"high"` confidence
+  for EC2/RDS today (only the Compute Optimizer cross-reference path does).
+  No public dataset of real utilization values exists (account-specific);
+  plan is a synthetic `GetMetricData`-shaped generator alongside
+  `scripts/generate-aws-cur-sample.mjs`, with a real
+  `@aws-sdk/client-cloudwatch` call behind the same seam for production.
+- AWS compute migration — **still planning only**, refined 2026-10-04:
+  static `/` landing page on GitHub Pages or Vercel (unauthenticated, matches
+  `proxy.ts`'s existing "only `/` is public" rule); authenticated dashboard
+  app (`/dashboard`, `/projects/*`, `/api/*`) on **AWS Amplify Hosting**
+  (true scale-to-zero SSR, least setup) as the default recommendation over
+  hand-rolling OpenNext + Lambda + CloudFront + S3. Keep **Neon**, don't
+  migrate to RDS/Aurora Serverless v2 (its ~0.5 ACU floor costs more idle
+  than Neon's free tier) — this also avoids needing a VPC/NAT Gateway, the
+  single biggest cost trap for a prototype. No ALB/ECS/Fargate/EC2 (all
+  have an always-on hourly cost). Secrets via SSM Parameter Store (free)
+  over Secrets Manager for a prototype. GitHub Actions workflows
+  (`scan-repo.yml`/`remediate-repo.yml`) are host-agnostic, unaffected
+  either way. Do not start migrating off Vercel/GitHub Actions without a
+  fresh, explicit ask.
+
+## Demo reference artifact (2026-10-04)
+
+A full internals/Q&A reference for presenting this app was compiled from
+live source (not assumption) and published as an artifact:
+**"TerraTrace Internals"** — https://claude.ai/artifact/SzQzGikEaJZNbVn94LVFDP
+Covers: the three-interface architecture, the Semgrep-based detection
+engine (corrects an earlier "Python-only" misreading — Semgrep covers
+Python/Java/Terraform; tree-sitter is a secondary, currently-unused-by-default
+Python path), all 6 detection rules verbatim, the CCF-derived carbon math
+formula and constants, billing correlation/apportionment logic, the LLM
+provider's prompts and guardrails, the CLI/GitHub Action pipelines, the
+role-access matrix, the DB schema, and a live Q&A crib sheet. Source file:
+`scripts/generate-aws-cur-sample.mjs` was also edited this session (`DAYS`
+3 → 30) to make the bundled sample CUR represent a full month instead of 3
+days — `sample-data/aws-cur-sample*.csv` were regenerated accordingly.
+These generator/data changes are uncommitted as of this writing (only
+commit when explicitly asked).
 
 ## Strong user preferences (see also CLAUDE.md, CONTRIBUTING.md)
 

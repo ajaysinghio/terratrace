@@ -9,7 +9,7 @@ import ScanButton from "../../components/ScanButton";
 import { isDbConfigured } from "../../lib/db";
 import { getInProgressScanProjectIds, isGithubActionsConfigured } from "../../lib/githubActions";
 import { ROLE_RANK, parseRole } from "../../lib/role";
-import { loadAllProjects } from "../../lib/projects";
+import { loadAllProjectsSlim } from "../../lib/projects";
 import { computeServiceBreakdown } from "../../lib/roleStats";
 import { computeStats, SEVERITY_COLOR } from "../../lib/stats";
 import { COOKIE_NAME, verifySessionCookieValue } from "../../lib/session";
@@ -33,8 +33,10 @@ export default async function HomePage({
   const session = process.env.GITHUB_OAUTH_CLIENT_ID
     ? verifySessionCookieValue((await cookies()).get(COOKIE_NAME)?.value)
     : null;
-  const projects = await loadAllProjects();
-  const inProgressScanIds = isGithubActionsConfigured() ? await getInProgressScanProjectIds() : new Set<string>();
+  const [projects, inProgressScanIds] = await Promise.all([
+    loadAllProjectsSlim(),
+    isGithubActionsConfigured() ? getInProgressScanProjectIds() : Promise.resolve(new Set<string>()),
+  ]);
   const summaries = projects
     .map((p) => ({ project: p.project, stats: computeStats(p.findings) }))
     .sort((a, b) => b.stats.total - a.stats.total);

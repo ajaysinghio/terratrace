@@ -1,6 +1,7 @@
 import { neon } from "@neondatabase/serverless";
 import type { CarbonEstimate, EnrichedFinding, Severity } from "@terratrace/core";
 import type { ProjectData, ProjectMeta } from "./projects";
+import type { StatsFinding } from "./stats";
 
 export type BillingSourceType = "cur_upload" | "sample";
 
@@ -124,25 +125,100 @@ export async function dbLoadAllProjects(): Promise<ProjectData[]> {
 
 export async function dbLoadProject(projectId: string): Promise<ProjectData | null> {
   const db = sql();
-  const projectRows = (await db`
-    select id, name, repo_url, scanned_at, billing_linked from projects where id = ${projectId}
-  `) as ProjectRow[];
+  // Independent of the project row, so fire both together — a missing
+  // project just discards the (empty) findings result.
+  const [projectRows, findingRows] = (await Promise.all([
+    db`select id, name, repo_url, scanned_at, billing_linked from projects where id = ${projectId}`,
+    db`
+      select id, rule_id, severity, file_path, start_line, end_line, snippet, message,
+             explanation, suggested_fix_diff, idempotency_key, autofix,
+             estimate_kg_co2e, estimate_methodology, estimate_grid_intensity_gco2_per_kwh,
+             estimate_confidence, estimate_cost_usd, billing_upload_id, pr_url
+      from findings
+      where project_id = ${projectId} and remediated_at is null
+    `,
+  ])) as [ProjectRow[], FindingRow[]];
   const projectRow = projectRows[0];
   if (!projectRow) return null;
-
-  const findingRows = (await db`
-    select id, rule_id, severity, file_path, start_line, end_line, snippet, message,
-           explanation, suggested_fix_diff, idempotency_key, autofix,
-           estimate_kg_co2e, estimate_methodology, estimate_grid_intensity_gco2_per_kwh,
-           estimate_confidence, estimate_cost_usd, billing_upload_id, pr_url
-    from findings
-    where project_id = ${projectId} and remediated_at is null
-  `) as FindingRow[];
 
   return {
     project: toProjectMeta(projectRow),
     findings: findingRows.map(toEnrichedFinding),
   };
+}
+
+export interface SlimProjectData {
+  project: ProjectMeta;
+  findings: StatsFinding[];
+}
+
+/**
+ * Home-page loader: only the columns computeStats/computeServiceBreakdown
+ * read (no snippet/explanation/diff/autofix payloads), fetched in two
+ * queries total regardless of project count instead of one per project.
+ * suggested_fix_diff is reduced to a boolean in SQL since stats only need
+ * "was a validated fix produced".
+ */
+export async function dbLoadAllProjectsSlim(): Promise<SlimProjectData[]> {
+  const db = sql();
+  const [projectRows, findingRows] = (await Promise.all([
+    db`select id, name, repo_url, scanned_at, billing_linked from projects`,
+    db`
+      select project_id, rule_id, severity, file_path,
+             (suggested_fix_diff is not null) as has_fix,
+             estimate_kg_co2e, estimate_methodology, estimate_grid_intensity_gco2_per_kwh,
+             estimate_confidence, estimate_cost_usd
+      from findings
+      where remediated_at is null
+    `,
+  ])) as [
+    ProjectRow[],
+    Array<
+      Pick<
+        FindingRow,
+        | "rule_id"
+        | "severity"
+        | "file_path"
+        | "estimate_kg_co2e"
+        | "estimate_methodology"
+        | "estimate_grid_intensity_gco2_per_kwh"
+        | "estimate_confidence"
+        | "estimate_cost_usd"
+      > & { project_id: string; has_fix: boolean }
+    >,
+  ];
+
+  const byProject = new Map<string, StatsFinding[]>();
+  for (const row of findingRows) {
+    const estimate: CarbonEstimate | undefined =
+      row.estimate_kg_co2e !== null &&
+      row.estimate_methodology !== null &&
+      row.estimate_grid_intensity_gco2_per_kwh !== null &&
+      row.estimate_confidence !== null &&
+      row.estimate_cost_usd !== null
+        ? {
+            kgCO2e: row.estimate_kg_co2e,
+            methodology: row.estimate_methodology,
+            gridIntensityGco2PerKwh: row.estimate_grid_intensity_gco2_per_kwh,
+            confidence: row.estimate_confidence,
+            costUsd: row.estimate_cost_usd,
+          }
+        : undefined;
+    const list = byProject.get(row.project_id) ?? [];
+    list.push({
+      ruleId: row.rule_id,
+      severity: row.severity,
+      filePath: row.file_path,
+      estimate,
+      suggestedFixDiff: row.has_fix ? "1" : undefined,
+    });
+    byProject.set(row.project_id, list);
+  }
+
+  return projectRows.map((projectRow) => ({
+    project: toProjectMeta(projectRow),
+    findings: byProject.get(projectRow.id) ?? [],
+  }));
 }
 
 export async function dbProjectExists(projectId: string): Promise<boolean> {
@@ -308,7 +384,7 @@ export async function dbApplyEstimates(
   billingUploadId: string
 ): Promise<void> {
   const db = sql();
-  await db`
+  const clear = db`
     update findings
     set
       estimate_kg_co2e = null,
@@ -319,19 +395,46 @@ export async function dbApplyEstimates(
       billing_upload_id = null
     where project_id = ${projectId}
   `;
-  for (const [findingId, estimate] of estimateByFindingId) {
-    await db`
-      update findings
-      set
-        estimate_kg_co2e = ${estimate.kgCO2e},
-        estimate_methodology = ${estimate.methodology},
-        estimate_grid_intensity_gco2_per_kwh = ${estimate.gridIntensityGco2PerKwh},
-        estimate_confidence = ${estimate.confidence},
-        estimate_cost_usd = ${estimate.costUsd},
-        billing_upload_id = ${billingUploadId}
-      where project_id = ${projectId} and id = ${findingId}
-    `;
+  if (estimateByFindingId.size === 0) {
+    await clear;
+    return;
   }
+
+  const ids: string[] = [];
+  const kg: number[] = [];
+  const methodology: string[] = [];
+  const intensity: number[] = [];
+  const confidence: string[] = [];
+  const cost: number[] = [];
+  for (const [findingId, estimate] of estimateByFindingId) {
+    ids.push(findingId);
+    kg.push(estimate.kgCO2e);
+    methodology.push(estimate.methodology);
+    intensity.push(estimate.gridIntensityGco2PerKwh);
+    confidence.push(estimate.confidence);
+    cost.push(estimate.costUsd);
+  }
+
+  // One round trip (and one transaction, so a failure can't leave estimates
+  // cleared but not re-applied) instead of an UPDATE per finding.
+  await db.transaction([
+    clear,
+    db`
+      update findings f
+      set
+        estimate_kg_co2e = e.kg,
+        estimate_methodology = e.methodology,
+        estimate_grid_intensity_gco2_per_kwh = e.intensity,
+        estimate_confidence = e.confidence,
+        estimate_cost_usd = e.cost,
+        billing_upload_id = ${billingUploadId}
+      from unnest(
+        ${ids}::text[], ${kg}::float8[], ${methodology}::text[],
+        ${intensity}::float8[], ${confidence}::text[], ${cost}::float8[]
+      ) as e(id, kg, methodology, intensity, confidence, cost)
+      where f.project_id = ${projectId} and f.id = e.id
+    `,
+  ]);
 }
 
 /**

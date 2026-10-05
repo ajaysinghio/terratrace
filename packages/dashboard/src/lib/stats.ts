@@ -12,6 +12,9 @@ export const SEVERITY_COLOR: Record<Severity, string> = {
   high: "#f85149",
 };
 
+/** The subset of a finding computeStats actually reads — lets list/summary pages load without snippets, explanations or diffs. */
+export type StatsFinding = Pick<EnrichedFinding, "ruleId" | "severity" | "filePath" | "estimate" | "suggestedFixDiff">;
+
 export interface SeverityCount {
   severity: Severity;
   count: number;
@@ -94,7 +97,7 @@ function dominantSeverityOf(bySeverity: Record<Severity, number>): Severity {
   return winner;
 }
 
-export function computeStats(findings: EnrichedFinding[]): DashboardStats {
+export function computeStats(findings: StatsFinding[]): DashboardStats {
   const severityCounts: Record<Severity, number> = { low: 0, medium: 0, high: 0 };
   const fileMap = new Map<string, Record<Severity, number>>();
   const ruleMap = new Map<string, number>();

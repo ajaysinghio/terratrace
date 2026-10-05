@@ -29,15 +29,17 @@ export default async function ProjectOverviewPage({
   const session = process.env.GITHUB_OAUTH_CLIENT_ID
     ? verifySessionCookieValue((await cookies()).get(COOKIE_NAME)?.value)
     : null;
-  const data = await loadProject(projectId);
+  const [data, latestUpload, remediationCounts] = await Promise.all([
+    loadProject(projectId),
+    isDbConfigured() ? dbGetLatestBillingUpload(projectId) : Promise.resolve(null),
+    isDbConfigured() ? dbGetRemediationCounts(projectId) : Promise.resolve(null),
+  ]);
 
   if (!data) {
     notFound();
   }
 
-  const latestUpload = isDbConfigured() ? await dbGetLatestBillingUpload(projectId) : null;
   const hasEstimates = data.findings.some((f) => f.estimate);
-  const remediationCounts = isDbConfigured() ? await dbGetRemediationCounts(projectId) : null;
 
   return (
     <ProjectShell

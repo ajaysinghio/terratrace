@@ -1,7 +1,7 @@
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import type { EnrichedFinding } from "@terratrace/core";
-import { dbLoadAllProjects, dbLoadProject, isDbConfigured } from "./db";
+import { dbLoadAllProjects, dbLoadAllProjectsSlim, dbLoadProject, isDbConfigured, type SlimProjectData } from "./db";
 import { computeStats, type DashboardStats } from "./stats";
 
 export interface ProjectMeta {
@@ -56,6 +56,11 @@ async function loadAllProjectsFromDisk(): Promise<ProjectData[]> {
 
 export async function loadAllProjects(): Promise<ProjectData[]> {
   return isDbConfigured() ? dbLoadAllProjects() : loadAllProjectsFromDisk();
+}
+
+/** Lightweight variant for pages that only compute stats — skips snippets, explanations and diffs when backed by the DB. */
+export async function loadAllProjectsSlim(): Promise<SlimProjectData[]> {
+  return isDbConfigured() ? dbLoadAllProjectsSlim() : loadAllProjectsFromDisk();
 }
 
 export async function loadProjectSummaries(): Promise<ProjectSummary[]> {
