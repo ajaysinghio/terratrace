@@ -871,14 +871,14 @@ a.stat-tile:visited {
 
 .landing__bg-icon {
   position: absolute;
-  opacity: 0.32;
-  filter: saturate(0.85);
+  color: var(--accent);
+  opacity: 0.13;
   user-select: none;
 }
 
 .landing__nav,
 .landing__hero,
-.landing__features {
+.landing__steps {
   position: relative;
   z-index: 1;
 }
@@ -895,6 +895,9 @@ a.stat-tile:visited {
 }
 
 .landing__brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
   font-weight: 700;
   font-size: 1.05rem;
 }
@@ -905,10 +908,13 @@ a.stat-tile:visited {
 
 .landing__nav-signin .landing__hint {
   margin: 0.4rem 0 0;
+  max-width: 14rem;
+  margin-left: auto;
+  line-height: 1.35;
 }
 
 .landing__hero {
-  max-width: 640px;
+  max-width: 720px;
   text-align: center;
 }
 
@@ -926,14 +932,14 @@ a.stat-tile:visited {
 
 .landing__headline {
   margin: 0 0 1rem;
-  font-size: clamp(1.9rem, 4vw, 2.75rem);
+  font-size: clamp(2rem, 4.5vw, 3.1rem);
   line-height: 1.15;
   text-wrap: balance;
 }
 
 .landing__tagline {
   color: var(--text-muted);
-  font-size: 1.05rem;
+  font-size: 1.2rem;
   line-height: 1.6;
   margin: 0 0 2rem;
 }
@@ -963,43 +969,310 @@ a.stat-tile:visited {
   margin: 1.25rem 0 0;
 }
 
-.landing__features {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 1.25rem;
-  max-width: 920px;
+.landing__steps {
+  max-width: 1100px;
   width: 100%;
   margin-top: 4.5rem;
 }
 
-@media (max-width: 720px) {
-  .landing__features {
+.landing__flow {
+  display: grid;
+  grid-template-columns: 1fr 2.1fr;
+  gap: 2.75rem;
+  align-items: stretch;
+}
+
+.landing__inputs {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.landing__inputs .landing__feature {
+  flex: 1;
+}
+
+/* Grid items default to min-width:auto, so the diff's long lines would widen
+   the column past the viewport on narrow screens. */
+.landing__flow > *,
+.landing__inputs > * {
+  min-width: 0;
+}
+
+@media (max-width: 860px) {
+  .landing__flow {
     grid-template-columns: 1fr;
+    gap: 1.5rem;
+  }
+}
+
+/* Arrow from each input card into the core panel — desktop only. */
+@media (min-width: 861px) {
+  .landing__inputs .landing__feature::after {
+    content: "→";
+    position: absolute;
+    top: 50%;
+    right: -2.15rem;
+    transform: translateY(-50%);
+    color: var(--accent);
+    font-size: 1.4rem;
   }
 }
 
 .landing__feature {
+  position: relative;
   background: var(--bg-card);
   border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 1.5rem;
+  border-radius: 14px;
+  padding: 1.75rem;
+}
+
+.landing__feature-head {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.landing__step {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.9rem;
+  height: 1.9rem;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #0d1117;
+  font-weight: 700;
+  font-size: 0.95rem;
 }
 
 .landing__feature-icon {
-  font-size: 1.5rem;
-  margin-bottom: 0.75rem;
+  display: inline-flex;
+  color: var(--text-muted);
 }
 
+.landing__tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-left: auto;
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 0.2rem 0.65rem;
+  border-radius: 999px;
+  background: var(--border);
+  color: var(--text);
+}
+
+.landing__tag--ai {
+  background: #e3b05a;
+  color: #0d1117;
+  font-size: 0.9rem;
+  box-shadow: 0 0 14px rgba(227, 176, 90, 0.45);
+}
+
+
 .landing__feature h2 {
-  margin: 0 0 0.5rem;
-  font-size: 1.05rem;
+  margin: 0 0 0.6rem;
+  font-size: 1.4rem;
 }
 
 .landing__feature p {
   margin: 0;
   color: var(--text-muted);
-  font-size: 0.9rem;
+  font-size: 1.05rem;
   line-height: 1.55;
+}
+
+.landing__core {
+  background: var(--bg-card);
+  border: 1px solid #e3b05a;
+  border-radius: 16px;
+  padding: 2rem;
+  box-shadow: 0 0 40px rgba(227, 176, 90, 0.2);
+}
+
+.landing__core-label {
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #e3b05a;
+}
+
+.landing__core h2 {
+  margin: 0;
+  font-size: 2rem;
+}
+
+.landing__core-steps {
+  list-style: none;
+  margin: 1.5rem 0 1.75rem;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1.4rem;
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.landing__core-steps li:not(:last-child)::after {
+  content: "→";
+  margin-left: 1.4rem;
+  color: #e3b05a;
+}
+
+.landing__diff {
+  margin-bottom: 1.5rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #0a0e14;
+  overflow: hidden;
+}
+
+.landing__diff-head {
+  padding: 0.45rem 0.9rem;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.landing__diff pre {
+  margin: 0;
+  padding: 0.8rem 0.9rem;
+  overflow-x: auto;
+  font-size: 0.85rem;
+  line-height: 1.6;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.landing__diff-del {
+  color: #f85149;
+}
+
+.landing__diff-add {
+  color: #3fb950;
+}
+
+.landing__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.landing__chip {
+  padding: 0.3rem 0.8rem;
+  border: 1px solid rgba(227, 176, 90, 0.5);
+  border-radius: 999px;
+  color: var(--text);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+@media (max-width: 860px) {
+  .landing__core {
+    padding: 1.5rem;
+  }
+}
+
+.landing__trust {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  margin: 2rem 0 0;
+  color: var(--text-muted);
+  font-size: 0.95rem;
+  text-align: center;
+}
+
+.landing__footer {
+  position: relative;
+  z-index: 1;
+  margin-top: auto;
+  padding-top: 4rem;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  text-align: center;
+}
+
+/* Desktop: fit the whole landing page in one viewport (no scrolling). Phones
+   keep the roomier stacked layout. */
+@media (min-width: 861px) {
+  .landing {
+    padding: 4.25rem 1.5rem 1.25rem;
+  }
+
+  .landing__eyebrow {
+    margin-bottom: 0.75rem;
+  }
+
+  .landing__headline {
+    font-size: clamp(1.9rem, 3.4vw, 2.6rem);
+    margin-bottom: 0.6rem;
+  }
+
+  .landing__tagline {
+    font-size: 1.1rem;
+    line-height: 1.5;
+    margin-bottom: 0;
+  }
+
+  .landing__steps {
+    margin-top: 1.75rem;
+  }
+
+  .landing__flow {
+    gap: 2.5rem;
+  }
+
+  .landing__inputs {
+    gap: 1rem;
+  }
+
+  .landing__feature {
+    padding: 1.25rem 1.4rem;
+  }
+
+  .landing__feature-head {
+    margin-bottom: 0.6rem;
+  }
+
+  .landing__feature h2 {
+    font-size: 1.25rem;
+    margin-bottom: 0.3rem;
+  }
+
+  .landing__feature p {
+    font-size: 1rem;
+  }
+
+  .landing__core {
+    padding: 1.4rem 1.75rem;
+  }
+
+  .landing__core h2 {
+    font-size: 1.75rem;
+  }
+
+  .landing__core-steps {
+    margin: 0.9rem 0 1.1rem;
+  }
+
+  .landing__diff {
+    margin-bottom: 1rem;
+  }
+
+  .landing__trust {
+    margin-top: 1rem;
+  }
+
+  .landing__footer {
+    padding-top: 1rem;
+  }
 }
 
 .account-menu {
