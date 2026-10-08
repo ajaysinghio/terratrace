@@ -317,6 +317,49 @@ See `sample-data/compute-optimizer-sample.json` and `sample-repo/terraform/order
 reuse) are deliberately deferred because a precise pattern needs dataflow
 reasoning; see "Adding a detection rule" in [CONTRIBUTING.md](./CONTRIBUTING.md).
 
+## How the numbers are calculated
+
+Carbon is derived from **usage**, never from cost. Cost travels alongside as
+the billed figure and is never an input to the carbon number. The method is
+Cloud Carbon Footprint's, with seed values for its constants (see the caveat
+above).
+
+```
+EC2 / RDS   averageWatts = min + 0.5 × (max − min)             # min/max watts per instance family; RDS reuses the EC2 table
+            kWh = usageHours × averageWatts × 1.135 / 1000     # 1.135 = AWS PUE
+S3          tbHours = (GB / 1024) × 720
+            kWh = tbHours × 0.0012 × 1.135
+Lambda      kWh = gbSeconds × 0.0000167 × 1.135
+All         kgCO2e = kWh × gridIntensity(provider, region)
+```
+
+| Constant | Value | Note |
+|---|---|---|
+| AWS PUE | 1.135 | Power usage effectiveness applied to every service |
+| CPU utilisation | 0.5 | CCF's default; there is no CloudWatch input yet |
+| Grid intensity, us-east-1 | 0.379 kg/kWh | One of 16 AWS regions in `coefficients/grid.ts` |
+| Cleanest region | 0.008 kg/kWh | eu-north-1 (Stockholm) |
+| Dirtiest region | 0.790 kg/kWh | ap-southeast-2 (Sydney) |
+| Unknown region | 0.4 kg/kWh | Deliberately conservative fallback |
+
+The same workload emits about **99× more** in Sydney than in Stockholm
+(0.790 / 0.008), which is why region matters as much as code.
+
+**Confidence**
+
+- Coverage is the share of billing records the energy model can price.
+  Coverage of 0.8 or above gives **medium**; below that, **low**.
+- A service with no energy model (a load balancer, for example) counts as
+  zero energy and lowers coverage. The bundled sample CUR reads *low* for
+  exactly that reason.
+- The deterministic estimator never returns **high**. Only the Compute
+  Optimizer cross-reference does, because it is a measured before-and-after
+  comparison and not an apportionment.
+
+To reproduce the sample figures, run `node scripts/carbon-smoke.mjs`; the
+expected output is in [TESTING.md](./TESTING.md). To change the model, see
+"Working on the carbon model" in [CONTRIBUTING.md](./CONTRIBUTING.md).
+
 ## Prerequisites
 
 - **Node.js ≥ 20.6** (the `--env-file=.env` flag used below needs 20.6+; tested on Node 26). On macOS: `brew install node`.

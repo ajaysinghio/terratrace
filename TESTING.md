@@ -30,8 +30,23 @@ enough.
 node scripts/carbon-smoke.mjs
 ```
 
-Expected: 306 rows in the per-record breakdown, aggregate
-`kgCO2e: ~15.64`, `confidence: "low"`. Confidence is `"low"` rather than
+Expected: 306 rows in the per-record breakdown and this aggregate:
+
+```json
+{
+  "kgCO2e": 15.641,
+  "methodology": "ccf-derived",
+  "gridIntensityGco2PerKwh": 379,
+  "confidence": "low",
+  "costUsd": 22.96
+}
+```
+
+These figures are for the committed 3-day sample. Regenerating it with a
+different `DAYS` in `scripts/generate-aws-cur-sample.mjs` changes the row
+count and the totals.
+
+Confidence is `"low"` rather than
 `"medium"` because the sample includes an ALB (load balancer) — the AWS
 energy model doesn't estimate load-balancer wattage, matching CCF's own
 scope (see Troubleshooting below).

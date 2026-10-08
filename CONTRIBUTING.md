@@ -310,6 +310,37 @@ chasing rule-count coverage.
   structured code + billing + infra evidence, not act as a plain chatbot
   wrapper.
 
+## Working on the carbon model
+
+The formulas and constants are in the README ("How the numbers are
+calculated"). This is where they live and what must stay true.
+
+**Where things live** (`packages/core/src/carbon/`)
+
+- `carbonMath.ts`: `estimateCarbon`, which sums kWh, applies grid intensity and sets confidence.
+- `energyModel.ts`: the `EnergyModel` interface; `estimateKwh(record)` returns 0 for a service it does not recognise.
+- `coefficients/aws.ts`: per-family watts, the PUE, and the S3 and Lambda coefficients.
+- `coefficients/grid.ts`: kg CO2e per kWh by provider and region, the 0.4 default, and `registerOnPremGridIntensity` for per-deployment on-prem values.
+- `coefficients/index.ts`: registers each provider's model.
+- `correlate.ts` apportions a service's usage across its findings; `correlateInfra.ts` is the Compute Optimizer cross-reference.
+
+**Invariants**
+
+- Carbon comes from usage, never from cost.
+- A record the model cannot price counts as zero energy and lowers coverage; do not guess a figure for it.
+- Confidence is coverage-based (0.8 or above is medium). The deterministic estimator must not return high; only a measured comparison, like the Compute Optimizer path, may.
+- An unknown region falls back to 0.4 kg/kWh.
+
+**Adding a provider or service**
+
+1. Implement `EnergyModel` for it and register it in `coefficients/index.ts`.
+2. Fill in its grid intensities in `coefficients/grid.ts` (the GCP and Azure tables are empty today).
+3. Add tests under `carbon/__tests__/` and re-run `node scripts/carbon-smoke.mjs` (expected output is in TESTING.md).
+
+The wattage and grid tables are seed values that approximate CCF's published
+ones, and both files carry a comment saying so. Replace them with CCF's
+canonical constants before quoting a figure to a client.
+
 ## Working on the AI layer
 
 Read this before changing a prompt, a model, `ruleSkills.ts` or the
